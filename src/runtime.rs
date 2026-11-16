@@ -40,11 +40,11 @@ use serde_json::Value;
 use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, AnnotateParams,
-    Annotations, CommandParams, ConfirmParams, Context, CopyParams, DecorateParams, DiffParams,
-    FileDecoration, FileParams, InitializeParams, Level, LineParams, Message, Named, NotifyParams,
-    OpenFileParams, PanelParams, PickFileParams, PublishParams, RenameParams, RenderParams,
-    ReplaceTextParams, RpcError, SaveFileParams, SetBaseParams, Settings, StatusParams,
-    TabDirtyParams, TabParams, UiEvent,
+    Annotations, CommandParams, ConfirmParams, Context, CopyParams, DecorateParams,
+    DiffActionParams, DiffParams, DiffTabParams, FileDecoration, FileParams, InitializeParams,
+    Level, LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams, PanelParams,
+    PickFileParams, PublishParams, RenameParams, RenderParams, ReplaceTextParams, RpcError,
+    SaveFileParams, SetBaseParams, Settings, StatusParams, TabDirtyParams, TabParams, UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -62,6 +62,10 @@ pub trait Plugin {
     /// A panel was opened: send what it shows with [`Host::render`].
     fn panel_opened(&mut self, host: &Host, panel: &str) {}
     fn panel_closed(&mut self, host: &Host, panel: &str) {}
+    /// A button of a diff tab of the plugin.
+    fn diff_action(&mut self, host: &Host, params: &DiffActionParams) {}
+    /// A file in conflict was resolved (the text written).
+    fn merge_resolved(&mut self, host: &Host, params: &MergeParams) {}
     /// A line of the annotations of a file was clicked (from 0).
     fn annotation_clicked(&mut self, host: &Host, path: &Path, line: usize) {}
     /// A tab of the plugin was closed.
@@ -192,6 +196,30 @@ impl Host {
                 root,
             },
         );
+    }
+
+    /// Shows diffs in a tab of the plugin (or replaces what it shows).
+    pub fn open_diff_tab(&self, params: DiffTabParams) -> Result<(), RpcError> {
+        self.request::<Value>(methods::OPEN_DIFF_TAB, params)
+            .map(|_| ())
+    }
+
+    /// A file in conflict, to resolve in a tab.
+    pub fn open_merge(
+        &self,
+        tab: &str,
+        path: impl AsRef<Path>,
+        text: impl Into<String>,
+    ) -> Result<(), RpcError> {
+        self.request::<Value>(
+            methods::OPEN_MERGE,
+            MergeParams {
+                tab: tab.to_string(),
+                path: path.as_ref().to_path_buf(),
+                text: text.into(),
+            },
+        )
+        .map(|_| ())
     }
 
     /// How files stand (replaces what was said before).
@@ -552,6 +580,16 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         methods::PANEL_CLOSED => {
             if let Some(p) = parse::<PanelParams>(params) {
                 plugin.panel_closed(host, &p.panel);
+            }
+        }
+        methods::DIFF_ACTION => {
+            if let Some(p) = parse::<DiffActionParams>(params) {
+                plugin.diff_action(host, &p);
+            }
+        }
+        methods::MERGE_RESOLVED => {
+            if let Some(p) = parse::<MergeParams>(params) {
+                plugin.merge_resolved(host, &p);
             }
         }
         methods::ANNOTATION_CLICKED => {
