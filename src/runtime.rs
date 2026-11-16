@@ -181,6 +181,16 @@ impl Host {
         );
     }
 
+    /// Opens a panel of the plugin, if it is not open.
+    pub fn show_panel(&self, panel: &str) {
+        self.notification(
+            methods::SHOW_PANEL,
+            PanelParams {
+                panel: panel.to_string(),
+            },
+        );
+    }
+
     /// A message in the status bar.
     pub fn notify(&self, message: impl Into<String>) {
         self.notification(

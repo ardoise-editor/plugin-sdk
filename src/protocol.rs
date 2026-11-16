@@ -85,6 +85,9 @@ pub mod methods {
     /// Notification, [`RenderParams`](super::RenderParams): what a panel
     /// shows, whole.
     pub const RENDER: &str = "ui/render";
+    /// Notification, [`PanelParams`](super::PanelParams): opens a panel of
+    /// the plugin (as its button would), if it is not open.
+    pub const SHOW_PANEL: &str = "ui/showPanel";
     /// Notification, [`NotifyParams`](super::NotifyParams): a message in the
     /// status bar.
     pub const NOTIFY: &str = "window/notify";
