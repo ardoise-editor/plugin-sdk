@@ -47,7 +47,8 @@ pub mod methods {
     /// Notification, [`FileParams`](super::FileParams). Sent only to the
     /// plugins that asked for `file_opened` in their manifest.
     pub const FILE_OPENED: &str = "event/fileOpened";
-    /// Notification, [`FileParams`](super::FileParams) (`file_saved`).
+    /// Notification, [`FileParams`](super::FileParams) (`file_saved`): a
+    /// file was written by the editor, or changed on the disk while open.
     pub const FILE_SAVED: &str = "event/fileSaved";
     /// Notification, [`FileParams`](super::FileParams) (`file_closed`).
     pub const FILE_CLOSED: &str = "event/fileClosed";

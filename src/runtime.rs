@@ -64,6 +64,11 @@ pub trait Plugin {
     fn ui_event(&mut self, host: &Host, event: &UiEvent) {}
     fn file_opened(&mut self, host: &Host, path: &Path) {}
     fn file_saved(&mut self, host: &Host, path: &Path) {}
+    /// The same, with what the file held before when the editor knows it
+    /// (a replace in files); by default, [`Plugin::file_saved`].
+    fn file_saved_from(&mut self, host: &Host, path: &Path, previous: Option<&str>) {
+        self.file_saved(host, path);
+    }
     fn file_closed(&mut self, host: &Host, path: &Path) {}
     /// A file is about to be deleted (`file_deleted`), with what it held.
     fn file_deleted(&mut self, host: &Host, path: &Path, text: Option<&str>) {}
@@ -444,7 +449,7 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         }
         methods::FILE_SAVED => {
             if let Some(p) = parse::<FileParams>(params) {
-                plugin.file_saved(host, &p.path);
+                plugin.file_saved_from(host, &p.path, p.previous.as_deref());
             }
         }
         methods::FILE_CLOSED => {
