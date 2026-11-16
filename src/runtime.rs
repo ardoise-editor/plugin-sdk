@@ -39,9 +39,13 @@ use serde_json::Value;
 
 use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
-    codes, methods, read_message, write_message, ActiveFile, CommandParams, ConfirmParams, Context,
-    FileParams, InitializeParams, Level, Message, NotifyParams, OpenFileParams, PanelParams,
-    RenderParams, RpcError, Settings, StatusParams, UiEvent,
+    codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, CommandParams,
+    ConfirmParams, Context, DiffParams, FileParams, InitializeParams, Level, Message, Named,
+    NotifyParams, OpenFileParams, PanelParams, PublishParams, RenderParams, ReplaceTextParams,
+    RpcError, Settings, StatusParams, UiEvent,
+};
+use crate::spell::{
+    CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
 };
 use crate::ui::Node;
 
@@ -62,6 +66,8 @@ pub trait Plugin {
     fn file_saved(&mut self, host: &Host, path: &Path) {}
     fn file_closed(&mut self, host: &Host, path: &Path) {}
     fn settings_changed(&mut self, host: &Host, settings: &Settings) {}
+    /// The file in front changed (`active_file` in the manifest).
+    fn active_file_changed(&mut self, host: &Host, path: Option<&Path>) {}
     /// `lint/run`, for a plugin with `contributes.linter`.
     fn lint(&mut self, host: &Host, params: &LintParams) -> Result<LintResult, String> {
         Err(format!("{} is not supported", methods::LINT_RUN))
@@ -70,7 +76,27 @@ pub trait Plugin {
     fn fix(&mut self, host: &Host, params: &FixParams) -> Result<FixResult, String> {
         Err(format!("{} is not supported", methods::LINT_FIX))
     }
-    /// Any other request of the editor (none yet): answer it.
+    /// `spell/languages`, for a plugin with `contributes.speller`.
+    fn spell_languages(&mut self, host: &Host) -> Result<Vec<SpellLanguage>, String> {
+        Err(format!("{} is not supported", methods::SPELL_LANGUAGES))
+    }
+    /// `spell/check`.
+    fn spell_check(&mut self, host: &Host, params: &CheckParams) -> Result<CheckResult, String> {
+        Err(format!("{} is not supported", methods::SPELL_CHECK))
+    }
+    /// `spell/suggest`.
+    fn spell_suggest(
+        &mut self,
+        host: &Host,
+        params: &SuggestParams,
+    ) -> Result<Vec<String>, String> {
+        Err(format!("{} is not supported", methods::SPELL_SUGGEST))
+    }
+    /// `spell/learn`.
+    fn spell_learn(&mut self, host: &Host, params: &LearnParams) -> Result<(), String> {
+        Err(format!("{} is not supported", methods::SPELL_LEARN))
+    }
+    /// Any other request of the editor: answer it.
     fn request(&mut self, host: &Host, method: &str, params: Value) -> Result<Value, RpcError> {
         Err(RpcError {
             code: codes::METHOD_NOT_FOUND,
@@ -216,6 +242,54 @@ impl Host {
         self.request(methods::ACTIVE_FILE, Value::Null)
     }
 
+    /// Shows two texts side by side: (title, text) each.
+    pub fn open_diff(
+        &self,
+        left: (impl Into<String>, impl Into<String>),
+        right: (impl Into<String>, impl Into<String>),
+    ) -> Result<(), RpcError> {
+        let named = |(title, text): (String, String)| Named { title, text };
+        self.request::<Value>(
+            methods::OPEN_DIFF,
+            DiffParams {
+                left: named((left.0.into(), left.1.into())),
+                right: named((right.0.into(), right.1.into())),
+            },
+        )
+        .map(|_| ())
+    }
+
+    /// Replaces the text of a file open in the editor (the user can undo it).
+    pub fn replace_text(
+        &self,
+        path: impl AsRef<Path>,
+        text: impl Into<String>,
+    ) -> Result<(), RpcError> {
+        self.request::<Value>(
+            methods::REPLACE_TEXT,
+            ReplaceTextParams {
+                path: path.as_ref().to_path_buf(),
+                text: text.into(),
+            },
+        )
+        .map(|_| ())
+    }
+
+    /// The problems found in a file (none: those said before go).
+    pub fn publish_diagnostics(
+        &self,
+        path: impl AsRef<Path>,
+        diagnostics: Vec<crate::lint::Diagnostic>,
+    ) {
+        self.notification(
+            methods::PUBLISH_DIAGNOSTICS,
+            PublishParams {
+                path: path.as_ref().to_path_buf(),
+                diagnostics,
+            },
+        );
+    }
+
     /// A line in the plugin's log (its standard error).
     pub fn log(&self, line: impl std::fmt::Display) {
         eprintln!("{line}");
@@ -271,6 +345,12 @@ pub fn run_on(
                     }
                     methods::LINT_RUN => typed(params, |p| plugin.lint(&host, &p)),
                     methods::LINT_FIX => typed(params, |p| plugin.fix(&host, &p)),
+                    methods::SPELL_LANGUAGES => {
+                        typed(Value::Null, |()| plugin.spell_languages(&host))
+                    }
+                    methods::SPELL_CHECK => typed(params, |p| plugin.spell_check(&host, &p)),
+                    methods::SPELL_SUGGEST => typed(params, |p| plugin.spell_suggest(&host, &p)),
+                    methods::SPELL_LEARN => typed(params, |p| plugin.spell_learn(&host, &p)),
                     _ => plugin.request(&host, &method, params),
                 };
                 host.send(&Message::Response { id, result })?;
@@ -340,6 +420,11 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         methods::FILE_CLOSED => {
             if let Some(p) = parse::<FileParams>(params) {
                 plugin.file_closed(host, &p.path);
+            }
+        }
+        methods::ACTIVE_FILE_CHANGED => {
+            if let Some(p) = parse::<ActiveFileParams>(params) {
+                plugin.active_file_changed(host, p.path.as_deref());
             }
         }
         methods::SETTINGS_CHANGED => {

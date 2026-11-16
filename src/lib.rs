@@ -11,6 +11,7 @@
 pub mod lint;
 pub mod manifest;
 pub mod protocol;
+pub mod spell;
 pub mod ui;
 
 #[cfg(feature = "runtime")]

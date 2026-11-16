@@ -67,6 +67,8 @@ pub enum Event {
     FileOpened,
     FileSaved,
     FileClosed,
+    /// The file in front changed (another tab, a file opened).
+    ActiveFile,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -80,7 +82,15 @@ pub struct Contributes {
     /// The plugin finds problems in files (see [`crate::lint`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub linter: Option<Linter>,
+    /// The plugin checks the spelling (see [`crate::spell`]): `{}`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speller: Option<Speller>,
 }
+
+/// A speller (nothing to say about it yet).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Speller {}
 
 /// The files a linter looks at.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

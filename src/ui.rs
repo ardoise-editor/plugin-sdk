@@ -86,8 +86,13 @@ pub enum Node {
     Separator,
     /// Empty room.
     Space { height: f32 },
-    /// Its child scrolls when it is taller than the panel.
-    Scroll { child: Box<Node> },
+    /// Its child scrolls when it is taller than the panel. With `bottom`, it
+    /// stays at the end as the child grows (an output).
+    Scroll {
+        child: Box<Node>,
+        #[serde(default, skip_serializing_if = "is_default")]
+        bottom: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,6 +277,7 @@ pub fn space(height: f32) -> Node {
 pub fn scroll(child: Node) -> Node {
     Node::Scroll {
         child: Box::new(child),
+        bottom: false,
     }
 }
 
@@ -280,6 +286,14 @@ impl Node {
     pub fn spacing(mut self, value: f32) -> Self {
         if let Node::Column { spacing, .. } | Node::Row { spacing, .. } = &mut self {
             *spacing = Some(value);
+        }
+        self
+    }
+
+    /// A scroll that stays at the end as its child grows.
+    pub fn stick_to_bottom(mut self) -> Self {
+        if let Node::Scroll { bottom, .. } = &mut self {
+            *bottom = true;
         }
         self
     }

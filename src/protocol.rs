@@ -51,6 +51,9 @@ pub mod methods {
     pub const FILE_SAVED: &str = "event/fileSaved";
     /// Notification, [`FileParams`](super::FileParams) (`file_closed`).
     pub const FILE_CLOSED: &str = "event/fileClosed";
+    /// Notification, [`ActiveFileParams`](super::ActiveFileParams): the
+    /// file in front changed (`active_file` in the manifest).
+    pub const ACTIVE_FILE_CHANGED: &str = "event/activeFileChanged";
     /// Notification, [`Settings`](super::Settings): the language or the
     /// theme of the editor changed.
     pub const SETTINGS_CHANGED: &str = "event/settingsChanged";
@@ -61,6 +64,17 @@ pub mod methods {
     /// Request, [`FixParams`](crate::lint::FixParams) →
     /// [`FixResult`](crate::lint::FixResult): the text with them fixed.
     pub const LINT_FIX: &str = "lint/fix";
+    /// Request, no parameters → `[Language]`
+    /// ([`spell::Language`](crate::spell::Language)): the dictionaries.
+    /// Only to the plugins with `contributes.speller`.
+    pub const SPELL_LANGUAGES: &str = "spell/languages";
+    /// Request, [`CheckParams`](crate::spell::CheckParams) →
+    /// [`CheckResult`](crate::spell::CheckResult).
+    pub const SPELL_CHECK: &str = "spell/check";
+    /// Request, [`SuggestParams`](crate::spell::SuggestParams) → `[String]`.
+    pub const SPELL_SUGGEST: &str = "spell/suggest";
+    /// Request, [`LearnParams`](crate::spell::LearnParams) → `null`.
+    pub const SPELL_LEARN: &str = "spell/learn";
 
     // ── From the plugin to the editor ──────────────────────────────────
     /// Notification, [`RenderParams`](super::RenderParams): what a panel
@@ -81,6 +95,17 @@ pub mod methods {
     /// Request, no parameters → [`ActiveFile`](super::ActiveFile): the file
     /// in front, its text and selection.
     pub const ACTIVE_FILE: &str = "editor/activeFile";
+    /// Request, [`DiffParams`](super::DiffParams) → `null`: shows two texts
+    /// side by side.
+    pub const OPEN_DIFF: &str = "editor/openDiff";
+    /// Request, [`ReplaceTextParams`](super::ReplaceTextParams) → `null`:
+    /// replaces the text of a file open in the editor, as one change the
+    /// user can undo (an error if it is not open).
+    pub const REPLACE_TEXT: &str = "editor/replaceText";
+    /// Notification, [`PublishParams`](super::PublishParams): the problems
+    /// the plugin found in a file, shown with the others (an empty list
+    /// takes them away).
+    pub const PUBLISH_DIAGNOSTICS: &str = "diagnostics/publish";
 }
 
 /// The errors of JSON-RPC, and the editor's own.
@@ -193,6 +218,39 @@ pub enum TreeAction {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileParams {
     pub path: PathBuf,
+}
+
+/// The file in front: none for a tab that is not a saved file.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ActiveFileParams {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+}
+
+/// A text and what it is called.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Named {
+    pub title: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiffParams {
+    pub left: Named,
+    pub right: Named,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReplaceTextParams {
+    pub path: PathBuf,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublishParams {
+    pub path: PathBuf,
+    #[serde(default)]
+    pub diagnostics: Vec<crate::lint::Diagnostic>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
