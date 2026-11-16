@@ -39,10 +39,11 @@ use serde_json::Value;
 
 use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
-    codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, CommandParams,
-    ConfirmParams, Context, CopyParams, DiffParams, FileParams, InitializeParams, Level, Message,
-    Named, NotifyParams, OpenFileParams, PanelParams, PickFileParams, PublishParams, RenameParams,
-    RenderParams, ReplaceTextParams, RpcError, SaveFileParams, Settings, StatusParams,
+    codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, AnnotateParams,
+    Annotations, CommandParams, ConfirmParams, Context, CopyParams, DecorateParams, DiffParams,
+    FileDecoration, FileParams, InitializeParams, Level, LineParams, Message, Named, NotifyParams,
+    OpenFileParams, PanelParams, PickFileParams, PublishParams, RenameParams, RenderParams,
+    ReplaceTextParams, RpcError, SaveFileParams, SetBaseParams, Settings, StatusParams,
     TabDirtyParams, TabParams, UiEvent,
 };
 use crate::spell::{
@@ -61,6 +62,8 @@ pub trait Plugin {
     /// A panel was opened: send what it shows with [`Host::render`].
     fn panel_opened(&mut self, host: &Host, panel: &str) {}
     fn panel_closed(&mut self, host: &Host, panel: &str) {}
+    /// A line of the annotations of a file was clicked (from 0).
+    fn annotation_clicked(&mut self, host: &Host, path: &Path, line: usize) {}
     /// A tab of the plugin was closed.
     fn tab_closed(&mut self, host: &Host, tab: &str) {}
     /// The user asked to save a tab of the plugin.
@@ -187,6 +190,48 @@ impl Host {
             RenderParams {
                 panel: panel.to_string(),
                 root,
+            },
+        );
+    }
+
+    /// How files stand (replaces what was said before).
+    pub fn decorate(&self, files: Vec<FileDecoration>) {
+        self.notification(methods::DECORATE, DecorateParams { files });
+    }
+
+    /// The text a file is compared with to mark its changed lines (none:
+    /// new, every line added).
+    pub fn set_base(&self, path: impl AsRef<Path>, text: Option<String>) {
+        self.notification(
+            methods::SET_BASE,
+            SetBaseParams {
+                path: path.as_ref().to_path_buf(),
+                text,
+                none: false,
+            },
+        );
+    }
+
+    /// No marks of changes for a file.
+    pub fn clear_base(&self, path: impl AsRef<Path>) {
+        self.notification(
+            methods::SET_BASE,
+            SetBaseParams {
+                path: path.as_ref().to_path_buf(),
+                text: None,
+                none: true,
+            },
+        );
+    }
+
+    /// A column of annotations left of the line numbers of a file (none:
+    /// it goes).
+    pub fn annotate(&self, path: impl AsRef<Path>, annotations: Option<Annotations>) {
+        self.notification(
+            methods::ANNOTATE,
+            AnnotateParams {
+                path: path.as_ref().to_path_buf(),
+                annotations,
             },
         );
     }
@@ -507,6 +552,11 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         methods::PANEL_CLOSED => {
             if let Some(p) = parse::<PanelParams>(params) {
                 plugin.panel_closed(host, &p.panel);
+            }
+        }
+        methods::ANNOTATION_CLICKED => {
+            if let Some(p) = parse::<LineParams>(params) {
+                plugin.annotation_clicked(host, &p.path, p.line);
             }
         }
         methods::TAB_CLOSED => {

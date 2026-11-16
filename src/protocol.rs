@@ -66,6 +66,15 @@ pub mod methods {
     /// Notification, [`PanelParams`](super::PanelParams): the user asked to
     /// save the tab (Ctrl/Cmd+S).
     pub const TAB_SAVE: &str = "tab/save";
+    /// Notification, [`DiffActionParams`](super::DiffActionParams): a button
+    /// of a diff tab of the plugin.
+    pub const DIFF_ACTION: &str = "diff/action";
+    /// Notification, [`MergeParams`](super::MergeParams) with the text
+    /// written: a conflict was resolved.
+    pub const MERGE_RESOLVED: &str = "merge/resolved";
+    /// Notification, [`LineParams`](super::LineParams): a line of the
+    /// annotations of a file was clicked.
+    pub const ANNOTATION_CLICKED: &str = "annotation/clicked";
     /// Notification, [`Settings`](super::Settings): the language or the
     /// theme of the editor changed.
     pub const SETTINGS_CHANGED: &str = "event/settingsChanged";
@@ -102,6 +111,25 @@ pub mod methods {
     pub const TAB_DIRTY: &str = "editor/tabDirty";
     /// Notification, [`PanelParams`](super::PanelParams): closes a tab.
     pub const CLOSE_TAB: &str = "editor/closeTab";
+    /// Notification, [`DecorateParams`](super::DecorateParams): how files
+    /// stand (their color in the tree and on the tabs). It replaces what
+    /// the plugin said before.
+    pub const DECORATE: &str = "editor/decorate";
+    /// Notification, [`SetBaseParams`](super::SetBaseParams): the text a
+    /// file is compared with to mark its changed lines (what the last commit
+    /// has of it); the editor marks them as it is typed in.
+    pub const SET_BASE: &str = "editor/setBase";
+    /// Notification, [`AnnotateParams`](super::AnnotateParams): a column of
+    /// text left of the line numbers of a file (a blame), or none.
+    pub const ANNOTATE: &str = "editor/annotate";
+    /// Request, [`DiffTabParams`](super::DiffTabParams) → `null`: shows the
+    /// diffs of files in a tab of the plugin (or replaces what a tab with
+    /// that id shows). Its buttons send `diff/action`.
+    pub const OPEN_DIFF_TAB: &str = "editor/openDiffTab";
+    /// Request, [`MergeParams`](super::MergeParams) → `null`: a file in
+    /// conflict, to resolve in a tab. Once it is resolved the editor writes
+    /// it and sends `merge/resolved`.
+    pub const OPEN_MERGE: &str = "editor/openMerge";
     /// Notification, [`PanelParams`](super::PanelParams): opens a panel of
     /// the plugin (as its button would), if it is not open.
     pub const SHOW_PANEL: &str = "ui/showPanel";
@@ -279,6 +307,156 @@ pub struct TabParams {
 pub struct TabDirtyParams {
     pub tab: String,
     pub dirty: bool,
+}
+
+/// How a file stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FileState {
+    Modified,
+    Added,
+    Untracked,
+    Conflicted,
+    Ignored,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileDecoration {
+    pub path: PathBuf,
+    pub state: FileState,
+    /// A folder (an ignored folder covers what is in it).
+    #[serde(default)]
+    pub folder: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DecorateParams {
+    pub files: Vec<FileDecoration>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SetBaseParams {
+    pub path: PathBuf,
+    /// What it is compared with (none: the file is new to it, every line
+    /// counts as added).
+    #[serde(default)]
+    pub text: Option<String>,
+    /// The file is outside of what the plugin knows: no marks at all.
+    #[serde(default)]
+    pub none: bool,
+}
+
+/// A line of a column of annotations.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnnotationLine {
+    pub text: String,
+    /// The tint behind it (`[r, g, b]`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tint: Option<[u8; 3]>,
+    /// Which entry of the details a pointer resting on it shows.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<usize>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Annotations {
+    /// One per line of the file.
+    pub lines: Vec<AnnotationLine>,
+    /// What a card shows, as lines: the first is drawn as a link.
+    #[serde(default)]
+    pub details: Vec<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AnnotateParams {
+    pub path: PathBuf,
+    /// None: the column goes.
+    #[serde(default)]
+    pub annotations: Option<Annotations>,
+}
+
+/// What a diff is of: it decides the buttons of its blocks.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DiffMode {
+    /// Only to read.
+    #[default]
+    Plain,
+    /// Changes not staged: each block can be staged, or put back.
+    Unstaged,
+    /// Changes staged: each block can be unstaged.
+    Staged,
+    /// A commit (or another revision) against its parent; it can be turned
+    /// into the revision against the file now.
+    Commit,
+}
+
+/// The diff of a file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiffFile {
+    /// Its path as shown (from the top of the repository).
+    pub path: String,
+    /// Its path before a rename.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<String>,
+    /// The diff, as `git diff` writes it (one file).
+    pub patch: String,
+    #[serde(default)]
+    pub mode: DiffMode,
+    /// The file on the disk (to open it from the diff).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiffTabParams {
+    pub tab: String,
+    pub title: String,
+    pub files: Vec<DiffFile>,
+    /// The file shown first.
+    #[serde(default)]
+    pub start: usize,
+}
+
+/// What a button of a diff tab asks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum DiffAction {
+    /// Apply this patch to the index (`git apply --cached`), reversed or not:
+    /// a block or the lines picked, staged or unstaged.
+    ApplyToIndex { patch: String, reverse: bool },
+    /// Put back, in the file, what it had before this block.
+    Rollback { block: usize },
+    /// Blanks left out of the diff or not, and the lines of context: the
+    /// plugin sends the diffs again.
+    Options { ignore_blanks: bool, context: u32 },
+    /// A commit against the file now, or against its parent.
+    ToggleCompare,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiffActionParams {
+    pub tab: String,
+    /// The file of the tab it is about.
+    pub file: usize,
+    pub action: DiffAction,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MergeParams {
+    pub tab: String,
+    /// The file in conflict.
+    pub path: PathBuf,
+    /// Its text with the conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`);
+    /// in `merge/resolved`, the text written.
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LineParams {
+    pub path: PathBuf,
+    /// From 0.
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
