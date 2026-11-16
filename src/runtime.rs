@@ -42,7 +42,8 @@ use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, CommandParams,
     ConfirmParams, Context, DiffParams, FileParams, InitializeParams, Level, Message, Named,
     NotifyParams, OpenFileParams, PanelParams, PublishParams, RenameParams, RenderParams,
-    ReplaceTextParams, RpcError, SaveFileParams, Settings, StatusParams, UiEvent,
+    ReplaceTextParams, RpcError, SaveFileParams, Settings, StatusParams, TabDirtyParams, TabParams,
+    UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -60,6 +61,10 @@ pub trait Plugin {
     /// A panel was opened: send what it shows with [`Host::render`].
     fn panel_opened(&mut self, host: &Host, panel: &str) {}
     fn panel_closed(&mut self, host: &Host, panel: &str) {}
+    /// A tab of the plugin was closed.
+    fn tab_closed(&mut self, host: &Host, tab: &str) {}
+    /// The user asked to save a tab of the plugin.
+    fn tab_save(&mut self, host: &Host, tab: &str) {}
     /// The user did something in a panel.
     fn ui_event(&mut self, host: &Host, event: &UiEvent) {}
     fn file_opened(&mut self, host: &Host, path: &Path) {}
@@ -182,6 +187,40 @@ impl Host {
             RenderParams {
                 panel: panel.to_string(),
                 root,
+            },
+        );
+    }
+
+    /// Opens a tab of the plugin among the files (see
+    /// [`methods::OPEN_TAB`]); it shows what is rendered for `tab`.
+    pub fn open_tab(&self, tab: &str, title: impl Into<String>) -> Result<(), RpcError> {
+        self.request::<Value>(
+            methods::OPEN_TAB,
+            TabParams {
+                tab: tab.to_string(),
+                title: title.into(),
+            },
+        )
+        .map(|_| ())
+    }
+
+    /// Says whether a tab holds changes not kept.
+    pub fn tab_dirty(&self, tab: &str, dirty: bool) {
+        self.notification(
+            methods::TAB_DIRTY,
+            TabDirtyParams {
+                tab: tab.to_string(),
+                dirty,
+            },
+        );
+    }
+
+    /// Closes a tab of the plugin.
+    pub fn close_tab(&self, tab: &str) {
+        self.notification(
+            methods::CLOSE_TAB,
+            PanelParams {
+                panel: tab.to_string(),
             },
         );
     }
@@ -435,6 +474,16 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         methods::PANEL_CLOSED => {
             if let Some(p) = parse::<PanelParams>(params) {
                 plugin.panel_closed(host, &p.panel);
+            }
+        }
+        methods::TAB_CLOSED => {
+            if let Some(p) = parse::<PanelParams>(params) {
+                plugin.tab_closed(host, &p.panel);
+            }
+        }
+        methods::TAB_SAVE => {
+            if let Some(p) = parse::<PanelParams>(params) {
+                plugin.tab_save(host, &p.panel);
             }
         }
         methods::UI_EVENT => {

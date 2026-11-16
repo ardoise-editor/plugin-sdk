@@ -60,6 +60,12 @@ pub mod methods {
     /// Notification, [`ActiveFileParams`](super::ActiveFileParams): the
     /// file in front changed (`active_file` in the manifest).
     pub const ACTIVE_FILE_CHANGED: &str = "event/activeFileChanged";
+    /// Notification, [`PanelParams`](super::PanelParams) with the tab as
+    /// `panel`: a tab of the plugin was closed.
+    pub const TAB_CLOSED: &str = "tab/closed";
+    /// Notification, [`PanelParams`](super::PanelParams): the user asked to
+    /// save the tab (Ctrl/Cmd+S).
+    pub const TAB_SAVE: &str = "tab/save";
     /// Notification, [`Settings`](super::Settings): the language or the
     /// theme of the editor changed.
     pub const SETTINGS_CHANGED: &str = "event/settingsChanged";
@@ -86,6 +92,16 @@ pub mod methods {
     /// Notification, [`RenderParams`](super::RenderParams): what a panel
     /// shows, whole.
     pub const RENDER: &str = "ui/render";
+    /// Request, [`TabParams`](super::TabParams) → `null`: opens a tab of the
+    /// plugin among the files (or brings it in front). It shows what the
+    /// plugin renders for the panel named as the tab; after a restart, the
+    /// editor sends `panel/opened` for it when it is first shown.
+    pub const OPEN_TAB: &str = "editor/openTab";
+    /// Notification, [`TabDirtyParams`](super::TabDirtyParams): the tab
+    /// holds changes not kept (its name is marked, closing it asks first).
+    pub const TAB_DIRTY: &str = "editor/tabDirty";
+    /// Notification, [`PanelParams`](super::PanelParams): closes a tab.
+    pub const CLOSE_TAB: &str = "editor/closeTab";
     /// Notification, [`PanelParams`](super::PanelParams): opens a panel of
     /// the plugin (as its button would), if it is not open.
     pub const SHOW_PANEL: &str = "ui/showPanel";
@@ -244,6 +260,19 @@ impl FileParams {
             previous: None,
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TabParams {
+    /// Its id, unique for the plugin: letters, digits, `.`, `-`, `_`.
+    pub tab: String,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TabDirtyParams {
+    pub tab: String,
+    pub dirty: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

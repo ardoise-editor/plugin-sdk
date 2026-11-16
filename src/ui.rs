@@ -86,6 +86,21 @@ pub enum Node {
     Separator,
     /// Empty room.
     Space { height: f32 },
+    /// Text on several lines, highlighted as `language` (an extension:
+    /// `json`, `rs`; empty: plain). Each change sends `ui/event` with the
+    /// `id` and the whole text, unless it is `read_only`. What is typed stays
+    /// until the plugin sends a different `value`.
+    Editor {
+        id: String,
+        value: String,
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        language: String,
+        #[serde(default, skip_serializing_if = "is_default")]
+        read_only: bool,
+        /// Its height in pixels (none: all the room left).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        height: Option<f32>,
+    },
     /// A terminal screen: a grid of styled cells the editor draws (see
     /// [`Screen`]). What the user types, the size it gets, the wheel and a
     /// paste come back as `ui/event` with the `id` (see [`ScreenInput`]).
@@ -368,6 +383,20 @@ pub fn tree_item(id: impl Into<String>, label: impl Into<String>) -> TreeItem {
     }
 }
 
+pub fn editor(
+    id: impl Into<String>,
+    value: impl Into<String>,
+    language: impl Into<String>,
+) -> Node {
+    Node::Editor {
+        id: id.into(),
+        value: value.into(),
+        language: language.into(),
+        read_only: false,
+        height: None,
+    }
+}
+
 pub fn separator() -> Node {
     Node::Separator
 }
@@ -388,6 +417,22 @@ impl Node {
     pub fn spacing(mut self, value: f32) -> Self {
         if let Node::Column { spacing, .. } | Node::Row { spacing, .. } = &mut self {
             *spacing = Some(value);
+        }
+        self
+    }
+
+    /// An editor that is only read.
+    pub fn read_only(mut self) -> Self {
+        if let Node::Editor { read_only, .. } = &mut self {
+            *read_only = true;
+        }
+        self
+    }
+
+    /// The height of an editor, in pixels.
+    pub fn height(mut self, value: f32) -> Self {
+        if let Node::Editor { height, .. } = &mut self {
+            *height = Some(value);
         }
         self
     }
