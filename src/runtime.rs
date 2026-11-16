@@ -40,10 +40,10 @@ use serde_json::Value;
 use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, CommandParams,
-    ConfirmParams, Context, DiffParams, FileParams, InitializeParams, Level, Message, Named,
-    NotifyParams, OpenFileParams, PanelParams, PublishParams, RenameParams, RenderParams,
-    ReplaceTextParams, RpcError, SaveFileParams, Settings, StatusParams, TabDirtyParams, TabParams,
-    UiEvent,
+    ConfirmParams, Context, CopyParams, DiffParams, FileParams, InitializeParams, Level, Message,
+    Named, NotifyParams, OpenFileParams, PanelParams, PickFileParams, PublishParams, RenameParams,
+    RenderParams, ReplaceTextParams, RpcError, SaveFileParams, Settings, StatusParams,
+    TabDirtyParams, TabParams, UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -312,8 +312,41 @@ impl Host {
             SaveFileParams {
                 name: name.into(),
                 text: text.into(),
+                bytes: None,
             },
         )
+    }
+
+    /// Asks the user where to save `bytes`; `Ok(false)` if they said no.
+    pub fn save_bytes(&self, name: impl Into<String>, bytes: Vec<u8>) -> Result<bool, RpcError> {
+        self.request(
+            methods::SAVE_FILE,
+            SaveFileParams {
+                name: name.into(),
+                text: String::new(),
+                bytes: Some(bytes),
+            },
+        )
+    }
+
+    /// Asks the user for a file (of these extensions; none: any).
+    pub fn pick_file(
+        &self,
+        title: impl Into<String>,
+        extensions: &[&str],
+    ) -> Result<Option<std::path::PathBuf>, RpcError> {
+        self.request(
+            methods::PICK_FILE,
+            PickFileParams {
+                title: title.into(),
+                extensions: extensions.iter().map(|e| e.to_string()).collect(),
+            },
+        )
+    }
+
+    /// Puts a text on the clipboard.
+    pub fn copy(&self, text: impl Into<String>) {
+        self.notification(methods::COPY, CopyParams { text: text.into() });
     }
 
     /// Shows two texts side by side: (title, text) each.

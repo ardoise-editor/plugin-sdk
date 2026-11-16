@@ -124,6 +124,12 @@ pub mod methods {
     /// the user where to save a text, and saves it there (`false`: the
     /// user said no).
     pub const SAVE_FILE: &str = "window/saveFile";
+    /// Request, [`PickFileParams`](super::PickFileParams) → path or `null`:
+    /// asks the user for a file.
+    pub const PICK_FILE: &str = "window/pickFile";
+    /// Notification, [`CopyParams`](super::CopyParams): puts a text on the
+    /// clipboard.
+    pub const COPY: &str = "window/copy";
     /// Request, [`DiffParams`](super::DiffParams) → `null`: shows two texts
     /// side by side.
     pub const OPEN_DIFF: &str = "editor/openDiff";
@@ -285,6 +291,23 @@ pub struct RenameParams {
 pub struct SaveFileParams {
     /// The name offered (`changes.patch`).
     pub name: String,
+    pub text: String,
+    /// Bytes to save instead of the text (a binary file).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bytes: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PickFileParams {
+    #[serde(default)]
+    pub title: String,
+    /// The extensions offered (none: any file).
+    #[serde(default)]
+    pub extensions: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CopyParams {
     pub text: String,
 }
 
