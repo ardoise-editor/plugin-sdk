@@ -69,6 +69,10 @@ pub enum Event {
     FileClosed,
     /// The file in front changed (another tab, a file opened).
     ActiveFile,
+    /// A file is about to be deleted by the editor (its text comes with it).
+    FileDeleted,
+    /// A file or a folder was renamed or moved by the editor.
+    FileRenamed,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -114,6 +118,22 @@ impl Linter {
 pub struct Command {
     pub id: String,
     pub title: Localized,
+    /// The context menus it is in too. Its context then says the file (or
+    /// folder) the menu was opened on.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub menus: Vec<Menu>,
+}
+
+/// A context menu of the editor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Menu {
+    /// The menu of the text being edited.
+    Editor,
+    /// The menu of a file of the projects or of the open files.
+    File,
+    /// The menu of a folder of the projects.
+    Folder,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

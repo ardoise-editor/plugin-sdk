@@ -51,6 +51,11 @@ pub mod methods {
     pub const FILE_SAVED: &str = "event/fileSaved";
     /// Notification, [`FileParams`](super::FileParams) (`file_closed`).
     pub const FILE_CLOSED: &str = "event/fileClosed";
+    /// Notification, [`FileParams`](super::FileParams) with the text of the
+    /// file in `previous` (`file_deleted`): it is about to go.
+    pub const FILE_DELETED: &str = "event/fileDeleted";
+    /// Notification, [`RenameParams`](super::RenameParams) (`file_renamed`).
+    pub const FILE_RENAMED: &str = "event/fileRenamed";
     /// Notification, [`ActiveFileParams`](super::ActiveFileParams): the
     /// file in front changed (`active_file` in the manifest).
     pub const ACTIVE_FILE_CHANGED: &str = "event/activeFileChanged";
@@ -95,6 +100,10 @@ pub mod methods {
     /// Request, no parameters → [`ActiveFile`](super::ActiveFile): the file
     /// in front, its text and selection.
     pub const ACTIVE_FILE: &str = "editor/activeFile";
+    /// Request, [`SaveFileParams`](super::SaveFileParams) → `bool`: asks
+    /// the user where to save a text, and saves it there (`false`: the
+    /// user said no).
+    pub const SAVE_FILE: &str = "window/saveFile";
     /// Request, [`DiffParams`](super::DiffParams) → `null`: shows two texts
     /// side by side.
     pub const OPEN_DIFF: &str = "editor/openDiff";
@@ -218,6 +227,32 @@ pub enum TreeAction {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileParams {
     pub path: PathBuf,
+    /// What the file held before, when the editor knows it: a file it
+    /// rewrote (a replace in files), one about to be deleted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous: Option<String>,
+}
+
+impl FileParams {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        FileParams {
+            path: path.into(),
+            previous: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenameParams {
+    pub from: PathBuf,
+    pub to: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SaveFileParams {
+    /// The name offered (`changes.patch`).
+    pub name: String,
+    pub text: String,
 }
 
 /// The file in front: none for a tab that is not a saved file.

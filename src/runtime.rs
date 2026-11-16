@@ -41,8 +41,8 @@ use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, CommandParams,
     ConfirmParams, Context, DiffParams, FileParams, InitializeParams, Level, Message, Named,
-    NotifyParams, OpenFileParams, PanelParams, PublishParams, RenderParams, ReplaceTextParams,
-    RpcError, Settings, StatusParams, UiEvent,
+    NotifyParams, OpenFileParams, PanelParams, PublishParams, RenameParams, RenderParams,
+    ReplaceTextParams, RpcError, SaveFileParams, Settings, StatusParams, UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -65,6 +65,10 @@ pub trait Plugin {
     fn file_opened(&mut self, host: &Host, path: &Path) {}
     fn file_saved(&mut self, host: &Host, path: &Path) {}
     fn file_closed(&mut self, host: &Host, path: &Path) {}
+    /// A file is about to be deleted (`file_deleted`), with what it held.
+    fn file_deleted(&mut self, host: &Host, path: &Path, text: Option<&str>) {}
+    /// A file or folder was renamed or moved (`file_renamed`).
+    fn file_renamed(&mut self, host: &Host, from: &Path, to: &Path) {}
     fn settings_changed(&mut self, host: &Host, settings: &Settings) {}
     /// The file in front changed (`active_file` in the manifest).
     fn active_file_changed(&mut self, host: &Host, path: Option<&Path>) {}
@@ -240,6 +244,22 @@ impl Host {
     /// The file in front of the user.
     pub fn active_file(&self) -> Result<ActiveFile, RpcError> {
         self.request(methods::ACTIVE_FILE, Value::Null)
+    }
+
+    /// Asks the user where to save `text` (`name` offered); `Ok(false)` if
+    /// they said no.
+    pub fn save_file(
+        &self,
+        name: impl Into<String>,
+        text: impl Into<String>,
+    ) -> Result<bool, RpcError> {
+        self.request(
+            methods::SAVE_FILE,
+            SaveFileParams {
+                name: name.into(),
+                text: text.into(),
+            },
+        )
     }
 
     /// Shows two texts side by side: (title, text) each.
@@ -420,6 +440,16 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         methods::FILE_CLOSED => {
             if let Some(p) = parse::<FileParams>(params) {
                 plugin.file_closed(host, &p.path);
+            }
+        }
+        methods::FILE_DELETED => {
+            if let Some(p) = parse::<FileParams>(params) {
+                plugin.file_deleted(host, &p.path, p.previous.as_deref());
+            }
+        }
+        methods::FILE_RENAMED => {
+            if let Some(p) = parse::<RenameParams>(params) {
+                plugin.file_renamed(host, &p.from, &p.to);
             }
         }
         methods::ACTIVE_FILE_CHANGED => {

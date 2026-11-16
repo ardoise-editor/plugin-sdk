@@ -14,9 +14,9 @@ pub struct Language {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckParams {
     pub text: String,
-    /// The language of the file as the editor highlights it (`rust`,
-    /// `markdown`, empty for plain text): in a program, only the comments
-    /// and strings are prose.
+    /// The language of the file as the editor highlights it, by its usual
+    /// extension (`rs`, `md`, empty for plain text): in a program, only the
+    /// comments are prose.
     #[serde(default)]
     pub syntax: String,
     /// The language chosen by the user (empty: that of the interface).
