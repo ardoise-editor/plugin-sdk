@@ -389,6 +389,9 @@ pub enum DiffMode {
     /// A commit (or another revision) against its parent; it can be turned
     /// into the revision against the file now.
     Commit,
+    /// A revision against the file now: each block can be put back as the
+    /// revision had it; it can be turned back into the commit's own diff.
+    Against,
 }
 
 /// The diff of a file.
