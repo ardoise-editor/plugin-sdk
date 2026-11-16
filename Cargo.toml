@@ -1,6 +1,6 @@
 [package]
 name = "simpleedit-plugin"
-version = "0.4.2"
+version = "0.5.0"
 edition = "2021"
 rust-version = "1.90"
 description = "Write plugins for the SimpleEdit text editor: the protocol, the manifest, the interface and a runtime"

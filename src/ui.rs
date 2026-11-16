@@ -86,6 +86,10 @@ pub enum Node {
     Separator,
     /// Empty room.
     Space { height: f32 },
+    /// A terminal screen: a grid of styled cells the editor draws (see
+    /// [`Screen`]). What the user types, the size it gets, the wheel and a
+    /// paste come back as `ui/event` with the `id` (see [`ScreenInput`]).
+    Screen(Box<Screen>),
     /// Its child scrolls when it is taller than the panel. With `bottom`, it
     /// stays at the end as the child grows (an output).
     Scroll {
@@ -148,6 +152,104 @@ pub struct TreeItem {
     pub expandable: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub expanded: bool,
+}
+
+/// What a terminal shows.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Screen {
+    pub id: String,
+    /// The size of the grid the lines are for: (rows, columns).
+    pub size: (u16, u16),
+    /// The visible lines, top first.
+    pub lines: Vec<Vec<Run>>,
+    /// Where the cursor is drawn (none: hidden).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<(u16, u16)>,
+    /// The arrows send `ESC O` (application cursor keys).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub app_cursor: bool,
+    /// A paste is wrapped in `ESC [200~` … `ESC [201~`.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub bracketed_paste: bool,
+    /// What a program asked of the mouse.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub mouse: MouseMode,
+    /// The mouse is reported in the SGR encoding (else the old one).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub mouse_sgr: bool,
+    /// A full-screen program (less, vim): the wheel moves its cursor.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub alternate: bool,
+    /// The folder relative paths of the output are from (a click on
+    /// `src/a.rs:3` opens it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dir: Option<std::path::PathBuf>,
+    /// A text marked wherever it is on screen (a search).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub highlight: String,
+}
+
+/// Cells of a line that look the same, from column `col`. A wide glyph
+/// (two columns) is a run of its own, with `wide`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Run {
+    pub col: u16,
+    pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fg: Option<TermColor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bg: Option<TermColor>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub bold: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub italic: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub underline: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub dim: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub inverse: bool,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub wide: bool,
+}
+
+/// A color of a terminal: one of its 256 (the first 16 follow the theme of
+/// the editor), or an exact one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TermColor {
+    Idx(u8),
+    Rgb(u8, u8, u8),
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MouseMode {
+    #[default]
+    None,
+    Press,
+    PressRelease,
+    ButtonMotion,
+    AnyMotion,
+}
+
+/// What a screen sends back, as the `value` of its `ui/event`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum ScreenInput {
+    /// Bytes to write to the program: keys, a paste, the mouse.
+    Input { bytes: Vec<u8> },
+    /// The screen has room for this grid.
+    Resize { rows: u16, cols: u16 },
+    /// The wheel over the history: lines up (positive) or down.
+    Scroll { lines: i32 },
+}
+
+impl ScreenInput {
+    /// What a screen sent, from the value of its event.
+    pub fn from_event(event: &crate::protocol::UiEvent) -> Option<Self> {
+        serde_json::from_value(event.value.clone()?).ok()
+    }
 }
 
 fn is_default<T: Default + PartialEq>(value: &T) -> bool {
@@ -428,6 +530,29 @@ mod tests {
                 ]
             })
         );
+    }
+
+    #[test]
+    fn a_screen_and_its_input_are_plain_json() {
+        let node = Node::Screen(Box::new(Screen {
+            id: "t".into(),
+            size: (2, 4),
+            lines: vec![vec![Run {
+                col: 0,
+                text: "ls".into(),
+                fg: Some(TermColor::Idx(2)),
+                ..Run::default()
+            }]],
+            cursor: Some((0, 2)),
+            ..Screen::default()
+        }));
+        let json = serde_json::to_value(&node).unwrap();
+        assert_eq!(json["type"], "screen");
+        assert_eq!(json["lines"][0][0]["fg"], json!({"idx": 2}));
+        assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
+        let input: ScreenInput =
+            serde_json::from_value(json!({"kind": "resize", "rows": 3, "cols": 9})).unwrap();
+        assert_eq!(input, ScreenInput::Resize { rows: 3, cols: 9 });
     }
 
     #[test]
