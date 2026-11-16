@@ -37,6 +37,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, CommandParams, ConfirmParams, Context,
     FileParams, InitializeParams, Level, Message, NotifyParams, OpenFileParams, PanelParams,
@@ -61,6 +62,21 @@ pub trait Plugin {
     fn file_saved(&mut self, host: &Host, path: &Path) {}
     fn file_closed(&mut self, host: &Host, path: &Path) {}
     fn settings_changed(&mut self, host: &Host, settings: &Settings) {}
+    /// `lint/run`, for a plugin with `contributes.linter`.
+    fn lint(&mut self, host: &Host, params: &LintParams) -> Result<LintResult, String> {
+        Err(format!("{} is not supported", methods::LINT_RUN))
+    }
+    /// `lint/fix`.
+    fn fix(&mut self, host: &Host, params: &FixParams) -> Result<FixResult, String> {
+        Err(format!("{} is not supported", methods::LINT_FIX))
+    }
+    /// Any other request of the editor (none yet): answer it.
+    fn request(&mut self, host: &Host, method: &str, params: Value) -> Result<Value, RpcError> {
+        Err(RpcError {
+            code: codes::METHOD_NOT_FOUND,
+            message: method.to_string(),
+        })
+    }
     /// The last call: the editor is closing or the plugin is uninstalled.
     fn shutdown(&mut self, host: &Host) {}
 }
@@ -253,10 +269,9 @@ pub fn run_on(
                         })?;
                         return Ok(());
                     }
-                    _ => Err(RpcError {
-                        code: codes::METHOD_NOT_FOUND,
-                        message: method.clone(),
-                    }),
+                    methods::LINT_RUN => typed(params, |p| plugin.lint(&host, &p)),
+                    methods::LINT_FIX => typed(params, |p| plugin.fix(&host, &p)),
+                    _ => plugin.request(&host, &method, params),
                 };
                 host.send(&Message::Response { id, result })?;
             }
@@ -269,6 +284,22 @@ pub fn run_on(
     }
     plugin.shutdown(&host);
     Ok(())
+}
+
+/// Reads the parameters of a request and answers with what `f` made of them.
+fn typed<P: DeserializeOwned, R: Serialize>(
+    params: Value,
+    f: impl FnOnce(P) -> Result<R, String>,
+) -> Result<Value, RpcError> {
+    let params = serde_json::from_value(params).map_err(|e| RpcError {
+        code: codes::INVALID_PARAMS,
+        message: e.to_string(),
+    })?;
+    let result = f(params).map_err(|message| RpcError {
+        code: codes::INTERNAL_ERROR,
+        message,
+    })?;
+    serde_json::to_value(result).map_err(|e| internal(&e.to_string()))
 }
 
 fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) {
@@ -471,6 +502,56 @@ mod tests {
                 },
             ]
         );
+    }
+
+    struct Linter;
+
+    impl Plugin for Linter {
+        fn lint(&mut self, _: &Host, params: &LintParams) -> Result<LintResult, String> {
+            Ok(LintResult {
+                ran: vec![format!("{} bytes", params.text.len())],
+                language_server: true,
+                ..LintResult::default()
+            })
+        }
+    }
+
+    #[test]
+    fn requests_of_the_editor_are_answered_or_refused() {
+        let input = framed(&[
+            Message::request(
+                1,
+                methods::LINT_RUN,
+                json!({"path": "/a.js", "text": "abc"}),
+            ),
+            Message::request(2, methods::LINT_FIX, json!({"path": "/a.js", "text": ""})),
+            Message::request(3, "other/thing", Value::Null),
+            Message::request(4, methods::LINT_RUN, json!({"text": 1})),
+        ]);
+        let out = Shared::default();
+        run_on(
+            BufReader::new(io::Cursor::new(input)),
+            Box::new(out.clone()),
+            Linter,
+        )
+        .unwrap();
+        let written = read_all(&out.0.lock().unwrap());
+        let Message::Response {
+            id: 1,
+            result: Ok(v),
+        } = &written[0]
+        else {
+            panic!("{written:?}");
+        };
+        assert_eq!(v["ran"][0], "3 bytes");
+        assert_eq!(v["language_server"], true);
+        let code = |m: &Message| match m {
+            Message::Response { result: Err(e), .. } => e.code,
+            _ => 0,
+        };
+        assert_eq!(code(&written[1]), codes::INTERNAL_ERROR);
+        assert_eq!(code(&written[2]), codes::METHOD_NOT_FOUND);
+        assert_eq!(code(&written[3]), codes::INVALID_PARAMS);
     }
 
     #[cfg(unix)]

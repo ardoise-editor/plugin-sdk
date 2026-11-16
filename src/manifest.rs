@@ -77,6 +77,26 @@ pub struct Contributes {
     pub commands: Vec<Command>,
     #[serde(default)]
     pub panels: Vec<Panel>,
+    /// The plugin finds problems in files (see [`crate::lint`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub linter: Option<Linter>,
+}
+
+/// The files a linter looks at.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Linter {
+    /// Their extensions, without the dot (`js`, `py`); `*` for every file.
+    pub extensions: Vec<String>,
+}
+
+impl Linter {
+    /// Whether the linter looks at files with this extension.
+    pub fn covers(&self, ext: &str) -> bool {
+        self.extensions
+            .iter()
+            .any(|e| e == "*" || e.eq_ignore_ascii_case(ext))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -110,6 +130,8 @@ pub enum Location {
     /// Under the editor, like the terminal; its button is at the bottom of
     /// the activity bar.
     Bottom,
+    /// In Preferences › Plugins, under the plugin: its settings. No button.
+    Settings,
 }
 
 /// A text in one language, or in several: `"Hello"` or
@@ -238,6 +260,18 @@ impl Manifest {
                 return Err(Invalid::Contribution(panel.id.clone()));
             }
         }
+        if let Some(linter) = &self.contributes.linter {
+            let good = |e: &String| {
+                e == "*"
+                    || (!e.is_empty()
+                        && e.len() <= 16
+                        && e.bytes()
+                            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-'))
+            };
+            if linter.extensions.is_empty() || !linter.extensions.iter().all(good) {
+                return Err(Invalid::Contribution("linter".into()));
+            }
+        }
         Ok(())
     }
 
@@ -334,6 +368,25 @@ mod tests {
             Err(Invalid::Json(_))
         ));
         assert!(with("bin/hello", "python3").is_ok());
+    }
+
+    #[test]
+    fn a_linter_says_its_files() {
+        let json = HELLO.replace(
+            "\"commands\":",
+            "\"linter\": {\"extensions\": [\"js\", \"PY\"]}, \"commands\":",
+        );
+        let m = Manifest::parse(&json).unwrap();
+        let linter = m.contributes.linter.unwrap();
+        assert!(linter.covers("py") && linter.covers("JS") && !linter.covers("rs"));
+        let bad = HELLO.replace(
+            "\"commands\":",
+            "\"linter\": {\"extensions\": [\".js\"]}, \"commands\":",
+        );
+        assert_eq!(
+            Manifest::parse(&bad),
+            Err(Invalid::Contribution("linter".into()))
+        );
     }
 
     #[test]

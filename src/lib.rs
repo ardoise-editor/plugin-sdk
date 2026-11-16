@@ -8,6 +8,7 @@
 //!
 //! The guide: <https://simple-edit-app.github.io/simpleedit/plugins.html>.
 
+pub mod lint;
 pub mod manifest;
 pub mod protocol;
 pub mod ui;

@@ -76,6 +76,14 @@ With its `plugin.json`:
 }
 ```
 
+## A linter
+
+A plugin with `"contributes": {"linter": {"extensions": ["py"]}}` is asked
+`lint/run` for the problems of those files, and `lint/fix` for the text with
+them fixed: implement `Plugin::lint` and `Plugin::fix` (types in
+`simpleedit_plugin::lint`). A panel with `"location": "settings"` is shown in
+**Preferences › Plugins**, under the plugin.
+
 [`plugin-template`](https://github.com/simple-edit-app/plugin-template) is a
 repository to start from, with the workflow that publishes the releases the
 editor installs.

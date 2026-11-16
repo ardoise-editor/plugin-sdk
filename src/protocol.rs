@@ -54,6 +54,13 @@ pub mod methods {
     /// Notification, [`Settings`](super::Settings): the language or the
     /// theme of the editor changed.
     pub const SETTINGS_CHANGED: &str = "event/settingsChanged";
+    /// Request, [`LintParams`](crate::lint::LintParams) →
+    /// [`LintResult`](crate::lint::LintResult): the problems of a file.
+    /// Only to the plugins with `contributes.linter`.
+    pub const LINT_RUN: &str = "lint/run";
+    /// Request, [`FixParams`](crate::lint::FixParams) →
+    /// [`FixResult`](crate::lint::FixResult): the text with them fixed.
+    pub const LINT_FIX: &str = "lint/fix";
 
     // ── From the plugin to the editor ──────────────────────────────────
     /// Notification, [`RenderParams`](super::RenderParams): what a panel
