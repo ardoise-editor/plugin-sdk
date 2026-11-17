@@ -66,6 +66,12 @@ pub mod methods {
     /// Notification, [`PanelParams`](super::PanelParams): the user asked to
     /// save the tab (Ctrl/Cmd+S).
     pub const TAB_SAVE: &str = "tab/save";
+    /// Notification, no parameters: the Plugins tab of Search Everywhere
+    /// opened; the plugin may send its items again.
+    pub const SEARCH_OPENED: &str = "search/opened";
+    /// Notification, [`SearchPickedParams`](super::SearchPickedParams): an
+    /// item of the plugin was picked in Search Everywhere.
+    pub const SEARCH_PICKED: &str = "search/picked";
     /// Notification, [`DiffActionParams`](super::DiffActionParams): a button
     /// of a diff tab of the plugin.
     pub const DIFF_ACTION: &str = "diff/action";
@@ -126,6 +132,10 @@ pub mod methods {
     /// diffs of files in a tab of the plugin (or replaces what a tab with
     /// that id shows). Its buttons send `diff/action`.
     pub const OPEN_DIFF_TAB: &str = "editor/openDiffTab";
+    /// Notification, [`SearchItemsParams`](super::SearchItemsParams): what
+    /// the plugin offers in the Plugins tab of Search Everywhere (branches,
+    /// commits…). It replaces what it offered before.
+    pub const SEARCH_ITEMS: &str = "editor/searchItems";
     /// Request, [`OpenTextParams`](super::OpenTextParams) → the path of the
     /// tab (to annotate it): a text in a tab of its own, to read only (a
     /// file as a commit had it).
@@ -597,6 +607,30 @@ pub struct ActiveFile {
     /// last, from 1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lines: Option<(usize, usize)>,
+}
+
+/// Something the plugin offers in Search Everywhere.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchItem {
+    /// What `search/picked` gives back.
+    pub id: String,
+    pub label: String,
+    /// Shown dimmed beside it; searched too.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub detail: String,
+    /// A Nerd Font glyph.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub icon: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchItemsParams {
+    pub items: Vec<SearchItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SearchPickedParams {
+    pub id: String,
 }
 
 /// A text to show in a tab of its own, to read only.

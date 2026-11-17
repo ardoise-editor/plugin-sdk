@@ -44,8 +44,8 @@ use crate::protocol::{
     DiffActionParams, DiffParams, DiffTabParams, FileDecoration, FileParams, InitializeParams,
     Level, LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams, OpenTextParams,
     PanelParams, PickFileParams, PublishParams, RenameParams, RenderParams, ReplaceTextParams,
-    RpcError, SaveFileParams, SetBaseParams, Settings, StatusParams, TabDirtyParams, TabParams,
-    UiEvent,
+    RpcError, SaveFileParams, SearchItem, SearchItemsParams, SearchPickedParams, SetBaseParams,
+    Settings, StatusParams, TabDirtyParams, TabParams, UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -63,6 +63,11 @@ pub trait Plugin {
     /// A panel was opened: send what it shows with [`Host::render`].
     fn panel_opened(&mut self, host: &Host, panel: &str) {}
     fn panel_closed(&mut self, host: &Host, panel: &str) {}
+    /// The Plugins tab of Search Everywhere opened (see
+    /// [`Host::search_items`]).
+    fn search_opened(&mut self, host: &Host) {}
+    /// An item of the plugin was picked in Search Everywhere.
+    fn search_picked(&mut self, host: &Host, id: &str) {}
     /// A button of a diff tab of the plugin.
     fn diff_action(&mut self, host: &Host, params: &DiffActionParams) {}
     /// A file in conflict was resolved (the text written).
@@ -238,6 +243,12 @@ impl Host {
             },
         )
         .map(|_| ())
+    }
+
+    /// What the plugin offers in Search Everywhere (replaces what it
+    /// offered before).
+    pub fn search_items(&self, items: Vec<SearchItem>) {
+        self.notification(methods::SEARCH_ITEMS, SearchItemsParams { items });
     }
 
     /// How files stand (replaces what was said before).
@@ -608,6 +619,12 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         methods::MERGE_RESOLVED => {
             if let Some(p) = parse::<MergeParams>(params) {
                 plugin.merge_resolved(host, &p);
+            }
+        }
+        methods::SEARCH_OPENED => plugin.search_opened(host),
+        methods::SEARCH_PICKED => {
+            if let Some(p) = parse::<SearchPickedParams>(params) {
+                plugin.search_picked(host, &p.id);
             }
         }
         methods::ANNOTATION_CLICKED => {
