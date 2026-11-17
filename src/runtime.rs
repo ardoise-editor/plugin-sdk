@@ -42,9 +42,10 @@ use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, AnnotateParams,
     Annotations, CommandParams, ConfirmParams, Context, CopyParams, DecorateParams,
     DiffActionParams, DiffParams, DiffTabParams, FileDecoration, FileParams, InitializeParams,
-    Level, LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams, PanelParams,
-    PickFileParams, PublishParams, RenameParams, RenderParams, ReplaceTextParams, RpcError,
-    SaveFileParams, SetBaseParams, Settings, StatusParams, TabDirtyParams, TabParams, UiEvent,
+    Level, LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams, OpenTextParams,
+    PanelParams, PickFileParams, PublishParams, RenameParams, RenderParams, ReplaceTextParams,
+    RpcError, SaveFileParams, SetBaseParams, Settings, StatusParams, TabDirtyParams, TabParams,
+    UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -196,6 +197,23 @@ impl Host {
                 root,
             },
         );
+    }
+
+    /// A text in a tab of its own, to read only; the path of that tab.
+    pub fn open_text(
+        &self,
+        title: impl Into<String>,
+        text: impl Into<String>,
+        extension: impl Into<String>,
+    ) -> Result<std::path::PathBuf, RpcError> {
+        self.request(
+            methods::OPEN_TEXT,
+            OpenTextParams {
+                title: title.into(),
+                text: text.into(),
+                extension: extension.into(),
+            },
+        )
     }
 
     /// Shows diffs in a tab of the plugin (or replaces what it shows).

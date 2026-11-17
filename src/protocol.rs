@@ -126,6 +126,10 @@ pub mod methods {
     /// diffs of files in a tab of the plugin (or replaces what a tab with
     /// that id shows). Its buttons send `diff/action`.
     pub const OPEN_DIFF_TAB: &str = "editor/openDiffTab";
+    /// Request, [`OpenTextParams`](super::OpenTextParams) → the path of the
+    /// tab (to annotate it): a text in a tab of its own, to read only (a
+    /// file as a commit had it).
+    pub const OPEN_TEXT: &str = "editor/openText";
     /// Request, [`MergeParams`](super::MergeParams) → `null`: a file in
     /// conflict, to resolve in a tab. Once it is resolved the editor writes
     /// it and sends `merge/resolved`.
@@ -589,6 +593,20 @@ pub struct ActiveFile {
     /// The language the editor highlights it as (`rust`, `python`, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<String>,
+    /// The lines of the selection, or the line of the cursor: first and
+    /// last, from 1.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lines: Option<(usize, usize)>,
+}
+
+/// A text to show in a tab of its own, to read only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OpenTextParams {
+    pub title: String,
+    pub text: String,
+    /// The extension its colors are chosen by (`rs`), if any.
+    #[serde(default)]
+    pub extension: String,
 }
 
 // ─── Messages ─────────────────────────────────────────────────────────────
