@@ -136,6 +136,10 @@ pub mod methods {
     /// diffs of files in a tab of the plugin (or replaces what a tab with
     /// that id shows). Its buttons send `diff/action`.
     pub const OPEN_DIFF_TAB: &str = "editor/openDiffTab";
+    /// Request, [`PickSavePathParams`](super::PickSavePathParams) → a path
+    /// or `null`: where to save a file, chosen by the user; the plugin
+    /// writes it (a file too big to go through the editor).
+    pub const PICK_SAVE_PATH: &str = "window/pickSavePath";
     /// Request, [`EditorStateParams`](super::EditorStateParams) →
     /// [`EditorState`](super::EditorState): the text of an editor of a
     /// panel, where its cursor is and what is selected.
@@ -619,6 +623,12 @@ pub struct ActiveFile {
     /// last, from 1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lines: Option<(usize, usize)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PickSavePathParams {
+    /// The name offered (`orders.csv`).
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -43,10 +43,10 @@ use crate::protocol::{
     Annotations, CommandParams, CompletionParams, Completions, ConfirmParams, Context, CopyParams,
     DecorateParams, DiffActionParams, DiffParams, DiffTabParams, EditorState, EditorStateParams,
     FileDecoration, FileParams, InitializeParams, Level, LineParams, MergeParams, Message, Named,
-    NotifyParams, OpenFileParams, OpenTextParams, PanelParams, PickFileParams, PublishParams,
-    RenameParams, RenderParams, ReplaceTextParams, RpcError, SaveFileParams, SearchItem,
-    SearchItemsParams, SearchPickedParams, SetBaseParams, Settings, StatusParams, TabDirtyParams,
-    TabParams, UiEvent,
+    NotifyParams, OpenFileParams, OpenTextParams, PanelParams, PickFileParams, PickSavePathParams,
+    PublishParams, RenameParams, RenderParams, ReplaceTextParams, RpcError, SaveFileParams,
+    SearchItem, SearchItemsParams, SearchPickedParams, SetBaseParams, Settings, StatusParams,
+    TabDirtyParams, TabParams, UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -212,6 +212,18 @@ impl Host {
                 root,
             },
         );
+    }
+
+    /// Where to save a file, chosen by the user (none: given up); the
+    /// plugin writes it.
+    pub fn pick_save_path(
+        &self,
+        name: impl Into<String>,
+    ) -> Result<Option<std::path::PathBuf>, RpcError> {
+        self.request(
+            methods::PICK_SAVE_PATH,
+            PickSavePathParams { name: name.into() },
+        )
     }
 
     /// The text of an editor of a panel, its cursor and its selection.
