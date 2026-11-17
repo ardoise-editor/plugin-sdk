@@ -41,11 +41,12 @@ use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, AnnotateParams,
     Annotations, CommandParams, CompletionParams, Completions, ConfirmParams, Context, CopyParams,
-    DecorateParams, DiffActionParams, DiffParams, DiffTabParams, FileDecoration, FileParams,
-    InitializeParams, Level, LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams,
-    OpenTextParams, PanelParams, PickFileParams, PublishParams, RenameParams, RenderParams,
-    ReplaceTextParams, RpcError, SaveFileParams, SearchItem, SearchItemsParams, SearchPickedParams,
-    SetBaseParams, Settings, StatusParams, TabDirtyParams, TabParams, UiEvent,
+    DecorateParams, DiffActionParams, DiffParams, DiffTabParams, EditorState, EditorStateParams,
+    FileDecoration, FileParams, InitializeParams, Level, LineParams, MergeParams, Message, Named,
+    NotifyParams, OpenFileParams, OpenTextParams, PanelParams, PickFileParams, PublishParams,
+    RenameParams, RenderParams, ReplaceTextParams, RpcError, SaveFileParams, SearchItem,
+    SearchItemsParams, SearchPickedParams, SetBaseParams, Settings, StatusParams, TabDirtyParams,
+    TabParams, UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -211,6 +212,17 @@ impl Host {
                 root,
             },
         );
+    }
+
+    /// The text of an editor of a panel, its cursor and its selection.
+    pub fn editor_state(&self, panel: &str, editor: &str) -> Result<EditorState, RpcError> {
+        self.request(
+            methods::EDITOR_STATE,
+            EditorStateParams {
+                panel: panel.to_string(),
+                editor: editor.to_string(),
+            },
+        )
     }
 
     /// A text in a tab of its own, to read only; the path of that tab.
