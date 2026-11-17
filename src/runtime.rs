@@ -227,12 +227,14 @@ impl Host {
             .map(|_| ())
     }
 
-    /// A file in conflict, to resolve in a tab.
+    /// A file in conflict, to resolve in a tab (`swap`: the side after
+    /// `=======` is the user's, as in a rebase).
     pub fn open_merge(
         &self,
         tab: &str,
         path: impl AsRef<Path>,
         text: impl Into<String>,
+        swap: bool,
     ) -> Result<(), RpcError> {
         self.request::<Value>(
             methods::OPEN_MERGE,
@@ -240,6 +242,7 @@ impl Host {
                 tab: tab.to_string(),
                 path: path.as_ref().to_path_buf(),
                 text: text.into(),
+                swap,
             },
         )
         .map(|_| ())

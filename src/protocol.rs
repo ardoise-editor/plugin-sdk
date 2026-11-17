@@ -467,6 +467,10 @@ pub struct MergeParams {
     /// Its text with the conflict markers (`<<<<<<<`, `=======`, `>>>>>>>`);
     /// in `merge/resolved`, the text written.
     pub text: String,
+    /// The side after `=======` is the user's own (a rebase replays the
+    /// user's commits onto the other side).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub swap: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
