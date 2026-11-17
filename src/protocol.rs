@@ -136,6 +136,10 @@ pub mod methods {
     /// diffs of files in a tab of the plugin (or replaces what a tab with
     /// that id shows). Its buttons send `diff/action`.
     pub const OPEN_DIFF_TAB: &str = "editor/openDiffTab";
+    /// Request, [`EditorStateParams`](super::EditorStateParams) →
+    /// [`EditorState`](super::EditorState): the text of an editor of a
+    /// panel, where its cursor is and what is selected.
+    pub const EDITOR_STATE: &str = "panel/editorState";
     /// Notification, [`SearchItemsParams`](super::SearchItemsParams): what
     /// the plugin offers in the Plugins tab of Search Everywhere (branches,
     /// commits…). It replaces what it offered before.
@@ -615,6 +619,29 @@ pub struct ActiveFile {
     /// last, from 1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lines: Option<(usize, usize)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorStateParams {
+    pub panel: String,
+    /// The `id` of the editor.
+    pub editor: String,
+}
+
+/// A place in a text: line and column (characters), from 0.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TextPosition {
+    pub line: usize,
+    pub column: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorState {
+    pub text: String,
+    pub cursor: TextPosition,
+    /// The other end of the selection, if something is selected.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<TextPosition>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
