@@ -66,6 +66,10 @@ pub mod methods {
     /// Notification, [`PanelParams`](super::PanelParams): the user asked to
     /// save the tab (Ctrl/Cmd+S).
     pub const TAB_SAVE: &str = "tab/save";
+    /// Request, [`CompletionParams`](super::CompletionParams) →
+    /// [`Completions`](super::Completions): what may come at the cursor of
+    /// an editor of a panel (one made `with_completion`).
+    pub const COMPLETION: &str = "completion/request";
     /// Notification, no parameters: the Plugins tab of Search Everywhere
     /// opened; the plugin may send its items again.
     pub const SEARCH_OPENED: &str = "search/opened";
@@ -611,6 +615,36 @@ pub struct ActiveFile {
     /// last, from 1.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub lines: Option<(usize, usize)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompletionParams {
+    pub panel: String,
+    /// The `id` of the editor.
+    pub editor: String,
+    pub text: String,
+    /// Where the cursor is, in characters from the start.
+    pub offset: usize,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompletionItem {
+    pub label: String,
+    /// What is put in place of the word at the cursor (none: the label).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub insert: Option<String>,
+    /// Shown dimmed beside it (a type, a table).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub detail: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Completions {
+    pub items: Vec<CompletionItem>,
+    /// Where the replaced word starts, in characters (none: the word made
+    /// of letters, digits and `_` before the cursor).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from: Option<usize>,
 }
 
 /// Something the plugin offers in Search Everywhere.

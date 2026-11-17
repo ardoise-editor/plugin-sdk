@@ -40,12 +40,12 @@ use serde_json::Value;
 use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, AnnotateParams,
-    Annotations, CommandParams, ConfirmParams, Context, CopyParams, DecorateParams,
-    DiffActionParams, DiffParams, DiffTabParams, FileDecoration, FileParams, InitializeParams,
-    Level, LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams, OpenTextParams,
-    PanelParams, PickFileParams, PublishParams, RenameParams, RenderParams, ReplaceTextParams,
-    RpcError, SaveFileParams, SearchItem, SearchItemsParams, SearchPickedParams, SetBaseParams,
-    Settings, StatusParams, TabDirtyParams, TabParams, UiEvent,
+    Annotations, CommandParams, CompletionParams, Completions, ConfirmParams, Context, CopyParams,
+    DecorateParams, DiffActionParams, DiffParams, DiffTabParams, FileDecoration, FileParams,
+    InitializeParams, Level, LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams,
+    OpenTextParams, PanelParams, PickFileParams, PublishParams, RenameParams, RenderParams,
+    ReplaceTextParams, RpcError, SaveFileParams, SearchItem, SearchItemsParams, SearchPickedParams,
+    SetBaseParams, Settings, StatusParams, TabDirtyParams, TabParams, UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -95,6 +95,15 @@ pub trait Plugin {
     fn settings_changed(&mut self, host: &Host, settings: &Settings) {}
     /// The file in front changed (`active_file` in the manifest).
     fn active_file_changed(&mut self, host: &Host, path: Option<&Path>) {}
+    /// `completion/request`: what may come at the cursor of an editor of a
+    /// panel made `with_completion`.
+    fn completion(
+        &mut self,
+        host: &Host,
+        params: &CompletionParams,
+    ) -> Result<Completions, String> {
+        Ok(Completions::default())
+    }
     /// `lint/run`, for a plugin with `contributes.linter`.
     fn lint(&mut self, host: &Host, params: &LintParams) -> Result<LintResult, String> {
         Err(format!("{} is not supported", methods::LINT_RUN))
@@ -556,6 +565,7 @@ pub fn run_on(
                         return Ok(());
                     }
                     methods::LINT_RUN => typed(params, |p| plugin.lint(&host, &p)),
+                    methods::COMPLETION => typed(params, |p| plugin.completion(&host, &p)),
                     methods::LINT_FIX => typed(params, |p| plugin.fix(&host, &p)),
                     methods::SPELL_LANGUAGES => {
                         typed(Value::Null, |()| plugin.spell_languages(&host))

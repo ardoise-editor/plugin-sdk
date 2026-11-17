@@ -100,6 +100,21 @@ pub enum Node {
         /// Its height in pixels (none: all the room left).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         height: Option<f32>,
+        /// Ctrl+Space (and typing a name) asks the plugin what may come at
+        /// the cursor (`completion/request`).
+        #[serde(default, skip_serializing_if = "is_default")]
+        completion: bool,
+    },
+    /// Rows of cells under named columns (the rows of a table): only the
+    /// rows on screen are drawn. What the user does comes back as
+    /// `ui/event` with the `id` and a [`GridEvent`].
+    Grid(Box<Grid>),
+    /// A picture: SVG text.
+    Image {
+        svg: String,
+        /// Its height in pixels (none: its own).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        height: Option<f32>,
     },
     /// A terminal screen: a grid of styled cells the editor draws (see
     /// [`Screen`]). What the user types, the size it gets, the wheel and a
@@ -111,7 +126,155 @@ pub enum Node {
         child: Box<Node>,
         #[serde(default, skip_serializing_if = "is_default")]
         bottom: bool,
+        /// Its height in pixels (none: all the room left).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        height: Option<f32>,
     },
+}
+
+/// A grid of cells (see [`Node::Grid`]).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Grid {
+    pub id: String,
+    pub columns: Vec<GridColumn>,
+    pub rows: Vec<GridRow>,
+    /// The cells picked: from `anchor` to `cursor` (row, column).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection: Option<GridSelection>,
+    /// The cell being typed in, and what it holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editing: Option<GridEditing>,
+    /// A field under each title to filter by that column.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub filters: bool,
+    /// What a right click on a cell offers: each item sends `ui/event`
+    /// with its `action` and `{"row", "col"}`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub menu: Vec<MenuItem>,
+    /// Its height in pixels (none: all the room left).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<f32>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct GridColumn {
+    pub name: String,
+    /// Under the name, dimmed (a type).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub detail: String,
+    /// In pixels (none: as wide as it needs, within limits).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub width: Option<f32>,
+    /// Sorted by it: ascending (`true`) or descending.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sort: Option<bool>,
+    /// What its filter field holds.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub filter: String,
+}
+
+/// How a row stands against what is saved.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RowState {
+    #[default]
+    Saved,
+    New,
+    Edited,
+    Deleted,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct GridRow {
+    pub cells: Vec<GridCell>,
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub state: RowState,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GridCell {
+    pub text: String,
+    /// No value (drawn as `NULL`).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub null: bool,
+    /// Changed and not saved yet.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub edited: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GridSelection {
+    pub anchor: (usize, usize),
+    pub cursor: (usize, usize),
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GridEditing {
+    pub row: usize,
+    pub col: usize,
+    pub value: String,
+}
+
+/// An item of a context menu.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MenuItem {
+    pub label: String,
+    pub action: String,
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub enabled: bool,
+}
+
+/// What a grid sends back, as the `value` of its `ui/event`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum GridEvent {
+    /// Cells picked with the mouse or the arrows.
+    Select {
+        anchor: (usize, usize),
+        cursor: (usize, usize),
+    },
+    /// A double click (or Enter, or F2) on a cell: to type in it.
+    Open {
+        row: usize,
+        col: usize,
+    },
+    /// What the cell being typed in holds now.
+    Edit {
+        value: String,
+    },
+    /// Enter in the cell typed in; Escape.
+    Commit,
+    Cancel,
+    /// A click on the title of a column.
+    Sort {
+        col: usize,
+    },
+    /// A column was made wider or narrower.
+    Resize {
+        col: usize,
+        width: f32,
+    },
+    /// Its filter field changed (Enter: `submit` true).
+    Filter {
+        col: usize,
+        value: String,
+        submit: bool,
+    },
+    /// Scrolled to the last row (to load more).
+    End,
+    /// Ctrl+C on the cells picked; Ctrl+V with this text; Delete.
+    Copy,
+    Paste {
+        text: String,
+    },
+    Delete,
+}
+
+impl GridEvent {
+    /// What a grid sent, from the value of its event.
+    pub fn from_event(event: &crate::protocol::UiEvent) -> Option<Self> {
+        serde_json::from_value(event.value.clone()?).ok()
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -394,6 +557,7 @@ pub fn editor(
         language: language.into(),
         read_only: false,
         height: None,
+        completion: false,
     }
 }
 
@@ -409,6 +573,34 @@ pub fn scroll(child: Node) -> Node {
     Node::Scroll {
         child: Box::new(child),
         bottom: false,
+        height: None,
+    }
+}
+
+pub fn grid(
+    id: impl Into<String>,
+    columns: impl IntoIterator<Item = GridColumn>,
+    rows: impl IntoIterator<Item = GridRow>,
+) -> Grid {
+    Grid {
+        id: id.into(),
+        columns: columns.into_iter().collect(),
+        rows: rows.into_iter().collect(),
+        ..Grid::default()
+    }
+}
+
+/// A picture, from SVG text.
+pub fn image(svg: impl Into<String>) -> Node {
+    Node::Image {
+        svg: svg.into(),
+        height: None,
+    }
+}
+
+impl From<Grid> for Node {
+    fn from(grid: Grid) -> Node {
+        Node::Grid(Box::new(grid))
     }
 }
 
@@ -429,10 +621,22 @@ impl Node {
         self
     }
 
-    /// The height of an editor, in pixels.
+    /// The height of an editor, a scroll or a picture, in pixels.
     pub fn height(mut self, value: f32) -> Self {
-        if let Node::Editor { height, .. } = &mut self {
-            *height = Some(value);
+        match &mut self {
+            Node::Editor { height, .. }
+            | Node::Scroll { height, .. }
+            | Node::Image { height, .. } => *height = Some(value),
+            Node::Grid(grid) => grid.height = Some(value),
+            _ => {}
+        }
+        self
+    }
+
+    /// An editor that asks the plugin what may come at the cursor.
+    pub fn with_completion(mut self) -> Self {
+        if let Node::Editor { completion, .. } = &mut self {
+            *completion = true;
         }
         self
     }
@@ -616,6 +820,65 @@ mod tests {
                 "t",
                 [tree_item("1", "One").children([tree_item("2", "Two")])]
             )
+        );
+    }
+}
+
+#[cfg(test)]
+mod grid_tests {
+    use super::*;
+
+    #[test]
+    fn a_grid_goes_as_json_and_its_events_come_back() {
+        let mut g = grid(
+            "rows",
+            [GridColumn {
+                name: "id".into(),
+                detail: "int".into(),
+                ..GridColumn::default()
+            }],
+            [GridRow {
+                cells: vec![GridCell {
+                    text: "1".into(),
+                    ..GridCell::default()
+                }],
+                state: RowState::Edited,
+            }],
+        );
+        g.menu.push(MenuItem {
+            label: "Copy".into(),
+            action: "copy".into(),
+            enabled: true,
+        });
+        let node: Node = g.into();
+        let node = node.height(200.0);
+        let json = serde_json::to_value(&node).unwrap();
+        assert_eq!(json["type"], "grid");
+        assert_eq!(json["rows"][0]["state"], "edited");
+        assert_eq!(json["height"], 200.0);
+        assert!(json["menu"][0].get("enabled").is_none(), "true is left out");
+        let back: Node = serde_json::from_value(json).unwrap();
+        assert_eq!(back, node);
+        let event = crate::protocol::UiEvent {
+            panel: "p".into(),
+            action: "rows".into(),
+            value: Some(serde_json::json!({"kind": "select", "anchor": [0, 1], "cursor": [2, 1]})),
+        };
+        assert_eq!(
+            GridEvent::from_event(&event),
+            Some(GridEvent::Select {
+                anchor: (0, 1),
+                cursor: (2, 1)
+            })
+        );
+        // A scroll and a picture take a height too.
+        assert_eq!(
+            serde_json::to_value(scroll(text("x")).height(10.0)).unwrap()["height"],
+            10.0
+        );
+        assert_eq!(
+            serde_json::to_value(image("<svg/>")).unwrap()["type"],
+            "image"
         );
     }
 }
