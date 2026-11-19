@@ -43,6 +43,11 @@ pub enum Node {
         style: ButtonStyle,
         #[serde(default = "yes", skip_serializing_if = "is_true")]
         enabled: bool,
+        /// A key that presses it while its panel has the keyboard (the
+        /// user clicked in it last): `"Ctrl+C"`, `"F4"`, `"Shift+Delete"`.
+        /// `Ctrl` is Cmd on macOS.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        key: Option<String>,
     },
     /// A line of text. Each change sends `ui/event` with the `id` and the
     /// text; Enter sends `submit` (if set) with the text.
@@ -104,6 +109,18 @@ pub enum Node {
         /// the cursor (`completion/request`).
         #[serde(default, skip_serializing_if = "is_default")]
         completion: bool,
+        /// Spans of lines (from 0, both ends in): the one the cursor is in
+        /// is framed (else the next one, else the last), unless something
+        /// is selected: the statement a Run would run.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        regions: Vec<[usize; 2]>,
+        /// A word underlined in red (where an error is).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        mark: Option<EditorMark>,
+        /// Where the cursor goes, with the other end of a selection: taken
+        /// when it differs from the one sent before (a match found).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        selection: Option<EditorSelection>,
     },
     /// Rows of cells under named columns (the rows of a table): only the
     /// rows on screen are drawn. What the user does comes back as
@@ -222,6 +239,10 @@ pub struct MenuItem {
     pub action: String,
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub enabled: bool,
+    /// A key that does it on the cell of the cursor (`"F4"`, as the
+    /// editor names keys), shown beside the label.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
 }
 
 /// What a grid sends back, as the `value` of its `ui/event`.
@@ -330,6 +351,33 @@ pub struct TreeItem {
     pub expandable: bool,
     #[serde(default, skip_serializing_if = "is_default")]
     pub expanded: bool,
+    /// Its context menu: an item picked sends `ui/event` with the item's
+    /// `action` and `{"item": id}`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub menu: Vec<MenuItem>,
+}
+
+/// A place in an editor: a line and a column, in characters, from 0.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorPos {
+    pub line: usize,
+    pub column: usize,
+}
+
+/// A word underlined in an editor.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorMark {
+    pub line: usize,
+    pub column: usize,
+    /// In characters.
+    pub len: usize,
+}
+
+/// A cursor, and the other end of what it selects.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EditorSelection {
+    pub anchor: EditorPos,
+    pub cursor: EditorPos,
 }
 
 /// What a terminal shows.
@@ -472,6 +520,7 @@ pub fn button(label: impl Into<String>, action: impl Into<String>) -> Node {
         action: action.into(),
         style: ButtonStyle::Outline,
         enabled: true,
+        key: None,
     }
 }
 
@@ -543,6 +592,7 @@ pub fn tree_item(id: impl Into<String>, label: impl Into<String>) -> TreeItem {
         children: Vec::new(),
         expandable: false,
         expanded: false,
+        menu: Vec::new(),
     }
 }
 
@@ -558,6 +608,9 @@ pub fn editor(
         read_only: false,
         height: None,
         completion: false,
+        regions: Vec::new(),
+        mark: None,
+        selection: None,
     }
 }
 
@@ -673,6 +726,38 @@ impl Node {
         self
     }
 
+    /// The key that presses a button while its panel has the keyboard.
+    pub fn key(mut self, value: impl Into<String>) -> Self {
+        if let Node::Button { key, .. } = &mut self {
+            *key = Some(value.into());
+        }
+        self
+    }
+
+    /// The spans of lines of an editor, the one of the cursor framed.
+    pub fn regions(mut self, value: impl IntoIterator<Item = [usize; 2]>) -> Self {
+        if let Node::Editor { regions, .. } = &mut self {
+            *regions = value.into_iter().collect();
+        }
+        self
+    }
+
+    /// A word of an editor underlined in red.
+    pub fn mark(mut self, value: EditorMark) -> Self {
+        if let Node::Editor { mark, .. } = &mut self {
+            *mark = Some(value);
+        }
+        self
+    }
+
+    /// Where the cursor of an editor goes (when it differs from before).
+    pub fn selection(mut self, value: EditorSelection) -> Self {
+        if let Node::Editor { selection, .. } = &mut self {
+            *selection = Some(value);
+        }
+        self
+    }
+
     /// A button that does nothing when `false`.
     pub fn enabled(mut self, value: bool) -> Self {
         if let Node::Button { enabled, .. } = &mut self {
@@ -752,6 +837,34 @@ impl TreeItem {
         self.expanded = value;
         self
     }
+
+    /// Its context menu.
+    pub fn menu(mut self, items: impl IntoIterator<Item = MenuItem>) -> Self {
+        self.menu = items.into_iter().collect();
+        self
+    }
+}
+
+impl MenuItem {
+    pub fn new(label: impl Into<String>, action: impl Into<String>) -> Self {
+        MenuItem {
+            label: label.into(),
+            action: action.into(),
+            enabled: true,
+            key: None,
+        }
+    }
+
+    pub fn enabled(mut self, value: bool) -> Self {
+        self.enabled = value;
+        self
+    }
+
+    /// The key that does it (see [`MenuItem::key`]).
+    pub fn key(mut self, value: impl Into<String>) -> Self {
+        self.key = Some(value.into());
+        self
+    }
 }
 
 #[cfg(test)]
@@ -827,6 +940,7 @@ mod tests {
 #[cfg(test)]
 mod grid_tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn a_grid_goes_as_json_and_its_events_come_back() {
@@ -849,6 +963,7 @@ mod grid_tests {
             label: "Copy".into(),
             action: "copy".into(),
             enabled: true,
+            key: Some("F4".into()),
         });
         let node: Node = g.into();
         let node = node.height(200.0);
@@ -857,6 +972,7 @@ mod grid_tests {
         assert_eq!(json["rows"][0]["state"], "edited");
         assert_eq!(json["height"], 200.0);
         assert!(json["menu"][0].get("enabled").is_none(), "true is left out");
+        assert_eq!(json["menu"][0]["key"], "F4");
         let back: Node = serde_json::from_value(json).unwrap();
         assert_eq!(back, node);
         let event = crate::protocol::UiEvent {
@@ -880,5 +996,52 @@ mod grid_tests {
             serde_json::to_value(image("<svg/>")).unwrap()["type"],
             "image"
         );
+    }
+
+    #[test]
+    fn keys_menus_frames_marks_and_selections_go_as_json_and_back() {
+        let node = column([
+            button("Copy SQL", "copy").key("Ctrl+C"),
+            tree(
+                "tree",
+                [tree_item("a", "A").menu([
+                    MenuItem::new("Rename", "rename").key("F2"),
+                    MenuItem::new("Delete", "delete").enabled(false),
+                ])],
+            ),
+            editor("sql", "select 1;\nselect 2;", "sql")
+                .regions([[0, 0], [1, 1]])
+                .mark(EditorMark {
+                    line: 1,
+                    column: 7,
+                    len: 1,
+                })
+                .selection(EditorSelection {
+                    anchor: EditorPos { line: 0, column: 0 },
+                    cursor: EditorPos { line: 0, column: 6 },
+                }),
+        ]);
+        let json = serde_json::to_value(&node).unwrap();
+        assert_eq!(json["children"][0]["key"], "Ctrl+C");
+        let menu = &json["children"][1]["items"][0]["menu"];
+        assert_eq!(menu[0]["key"], "F2");
+        assert_eq!(menu[1]["enabled"], false);
+        let editor = &json["children"][2];
+        assert_eq!(editor["regions"], json!([[0, 0], [1, 1]]));
+        assert_eq!(editor["mark"]["len"], 1);
+        assert_eq!(editor["selection"]["cursor"]["column"], 6);
+        let back: Node = serde_json::from_value(json).unwrap();
+        assert_eq!(back, node);
+        // Left out when not set.
+        let plain = serde_json::to_value(editor_plain()).unwrap();
+        for absent in ["regions", "mark", "selection"] {
+            assert!(plain.get(absent).is_none(), "{absent}");
+        }
+        let plain = serde_json::to_value(button("b", "b")).unwrap();
+        assert!(plain.get("key").is_none());
+    }
+
+    fn editor_plain() -> Node {
+        editor("e", "", "")
     }
 }

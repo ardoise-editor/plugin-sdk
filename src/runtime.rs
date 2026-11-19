@@ -41,12 +41,12 @@ use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, AnnotateParams,
     Annotations, CommandParams, CompletionParams, Completions, ConfirmParams, Context, CopyParams,
-    DecorateParams, DiffActionParams, DiffParams, DiffTabParams, EditorState, EditorStateParams,
-    FileDecoration, FileParams, InitializeParams, Level, LineParams, MergeParams, Message, Named,
-    NotifyParams, OpenFileParams, OpenTextParams, PanelParams, PickFileParams, PickSavePathParams,
-    PublishParams, RenameParams, RenderParams, ReplaceTextParams, RpcError, SaveFileParams,
-    SearchItem, SearchItemsParams, SearchPickedParams, SetBaseParams, Settings, StatusParams,
-    TabDirtyParams, TabParams, UiEvent,
+    DecorateParams, DeleteOption, DeleteOptions, DiffActionParams, DiffParams, DiffTabParams,
+    EditorState, EditorStateParams, FileDecoration, FileParams, InitializeParams, Level,
+    LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams, OpenTextParams,
+    PanelParams, PickFileParams, PickSavePathParams, PublishParams, RenameParams, RenderParams,
+    ReplaceTextParams, RpcError, SaveFileParams, SearchItem, SearchItemsParams, SearchPickedParams,
+    SetBaseParams, SetOriginParams, Settings, StatusParams, TabDirtyParams, TabParams, UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -91,6 +91,14 @@ pub trait Plugin {
     fn file_closed(&mut self, host: &Host, path: &Path) {}
     /// A file is about to be deleted (`file_deleted`), with what it held.
     fn file_deleted(&mut self, host: &Host, path: &Path, text: Option<&str>) {}
+    /// `file/deleteOptions`: the boxes the plugin adds to the question
+    /// before `path` is deleted (none by default).
+    fn delete_options(&mut self, host: &Host, path: &Path) -> Vec<DeleteOption> {
+        Vec::new()
+    }
+    /// The boxes of the plugin the user left ticked for a file deleted
+    /// (after `file_deleted`).
+    fn delete_chosen(&mut self, host: &Host, path: &Path, options: &[String]) {}
     /// A file or folder was renamed or moved (`file_renamed`).
     fn file_renamed(&mut self, host: &Host, from: &Path, to: &Path) {}
     fn settings_changed(&mut self, host: &Host, settings: &Settings) {}
@@ -159,6 +167,18 @@ pub struct Host {
 const ANSWER_WAIT: Duration = Duration::from_secs(300);
 
 impl Host {
+    /// A host that writes what the plugin says to `out`, for the tests of a
+    /// plugin: notifications land there whole (read them back with
+    /// [`read_message`](crate::protocol::read_message)). Only for
+    /// notifications: a request would wait for an answer that never comes.
+    pub fn to_writer(out: impl Write + Send + 'static) -> Host {
+        Host {
+            out: Arc::new(Mutex::new(Box::new(out))),
+            pending: Arc::default(),
+            next_id: Arc::new(Mutex::new(0)),
+        }
+    }
+
     fn send(&self, message: &Message) -> io::Result<()> {
         let mut out = self
             .out
@@ -294,6 +314,18 @@ impl Host {
 
     /// The text a file is compared with to mark its changed lines (none:
     /// new, every line added).
+    /// Where a file comes from, shown in place of its folder (none: its
+    /// folder again).
+    pub fn set_origin(&self, path: impl AsRef<Path>, origin: Option<String>) {
+        self.notification(
+            methods::SET_ORIGIN,
+            SetOriginParams {
+                path: path.as_ref().to_path_buf(),
+                origin,
+            },
+        );
+    }
+
     pub fn set_base(&self, path: impl AsRef<Path>, text: Option<String>) {
         self.notification(
             methods::SET_BASE,
@@ -595,6 +627,11 @@ pub fn run_on(
                         typed(Value::Null, |()| plugin.spell_languages(&host))
                     }
                     methods::SPELL_CHECK => typed(params, |p| plugin.spell_check(&host, &p)),
+                    methods::DELETE_OPTIONS => typed(params, |p: FileParams| {
+                        Ok(DeleteOptions {
+                            options: plugin.delete_options(&host, &p.path),
+                        })
+                    }),
                     methods::SPELL_SUGGEST => typed(params, |p| plugin.spell_suggest(&host, &p)),
                     methods::SPELL_LEARN => typed(params, |p| plugin.spell_learn(&host, &p)),
                     _ => plugin.request(&host, &method, params),
@@ -702,6 +739,9 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         methods::FILE_DELETED => {
             if let Some(p) = parse::<FileParams>(params) {
                 plugin.file_deleted(host, &p.path, p.previous.as_deref());
+                if !p.options.is_empty() {
+                    plugin.delete_chosen(host, &p.path, &p.options);
+                }
             }
         }
         methods::FILE_RENAMED => {
@@ -749,6 +789,34 @@ fn read_in_background(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_host_for_tests_writes_its_notifications_where_it_is_told() {
+        #[derive(Clone, Default)]
+        struct Shared(Arc<Mutex<Vec<u8>>>);
+        impl Write for Shared {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.0.lock().unwrap().write(buf)
+            }
+            fn flush(&mut self) -> io::Result<()> {
+                Ok(())
+            }
+        }
+        let out = Shared::default();
+        let host = Host::to_writer(out.clone());
+        host.set_origin("/tmp/a", Some("box:/a".into()));
+        let bytes = out.0.lock().unwrap().clone();
+        let said = crate::protocol::read_message(&mut io::BufReader::new(&bytes[..]))
+            .unwrap()
+            .unwrap();
+        match said {
+            Message::Notification { method, params } => {
+                assert_eq!(method, methods::SET_ORIGIN);
+                assert_eq!(params["origin"], "box:/a");
+            }
+            other => panic!("{other:?}"),
+        }
+    }
     use crate::ui::text;
     use serde_json::json;
     use std::path::PathBuf;
@@ -924,6 +992,59 @@ mod tests {
         assert_eq!(code(&written[1]), codes::INTERNAL_ERROR);
         assert_eq!(code(&written[2]), codes::METHOD_NOT_FOUND);
         assert_eq!(code(&written[3]), codes::INVALID_PARAMS);
+    }
+
+    #[test]
+    fn a_plugin_adds_boxes_before_a_deletion_and_hears_the_ones_ticked() {
+        type Chosen = Vec<(PathBuf, Vec<String>)>;
+        #[derive(Default)]
+        struct Tracker(Arc<Mutex<Chosen>>);
+        impl Plugin for Tracker {
+            fn delete_options(&mut self, _: &Host, path: &Path) -> Vec<DeleteOption> {
+                vec![DeleteOption {
+                    id: "untrack".into(),
+                    label: format!("Untrack {}", path.display()),
+                    checked: true,
+                }]
+            }
+            fn delete_chosen(&mut self, _: &Host, path: &Path, options: &[String]) {
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push((path.to_path_buf(), options.to_vec()));
+            }
+        }
+        let input = framed(&[
+            Message::request(1, methods::DELETE_OPTIONS, json!({"path": "/a.txt"})),
+            Message::notification(
+                methods::FILE_DELETED,
+                json!({"path": "/a.txt", "options": ["untrack"]}),
+            ),
+            Message::notification(methods::FILE_DELETED, json!({"path": "/b.txt"})),
+        ]);
+        let out = Shared::default();
+        let chosen = Arc::new(Mutex::new(Vec::new()));
+        run_on(
+            BufReader::new(io::Cursor::new(input)),
+            Box::new(out.clone()),
+            Tracker(chosen.clone()),
+        )
+        .unwrap();
+        let written = read_all(&out.0.lock().unwrap());
+        let Message::Response {
+            id: 1,
+            result: Ok(v),
+        } = &written[0]
+        else {
+            panic!("{written:?}");
+        };
+        assert_eq!(v["options"][0]["id"], "untrack");
+        assert_eq!(v["options"][0]["checked"], true);
+        assert_eq!(
+            *chosen.lock().unwrap(),
+            vec![(PathBuf::from("/a.txt"), vec!["untrack".to_string()])],
+            "only the deletion with a box ticked"
+        );
     }
 
     #[cfg(unix)]

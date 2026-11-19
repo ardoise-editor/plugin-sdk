@@ -55,6 +55,11 @@ pub mod methods {
     /// Notification, [`FileParams`](super::FileParams) with the text of the
     /// file in `previous` (`file_deleted`): it is about to go.
     pub const FILE_DELETED: &str = "event/fileDeleted";
+    /// Request, [`FileParams`](super::FileParams) → [`DeleteOptions`](super::DeleteOptions),
+    /// to the plugins that follow `file_deleted`: the boxes they add to the
+    /// question before a file is deleted. The ones left ticked come back in
+    /// the `options` of `event/fileDeleted`.
+    pub const DELETE_OPTIONS: &str = "file/deleteOptions";
     /// Notification, [`RenameParams`](super::RenameParams) (`file_renamed`).
     pub const FILE_RENAMED: &str = "event/fileRenamed";
     /// Notification, [`ActiveFileParams`](super::ActiveFileParams): the
@@ -129,6 +134,10 @@ pub mod methods {
     /// file is compared with to mark its changed lines (what the last commit
     /// has of it); the editor marks them as it is typed in.
     pub const SET_BASE: &str = "editor/setBase";
+    /// Notification, [`SetOriginParams`](super::SetOriginParams): where a
+    /// file comes from (`host:/path` of a copy), shown in place of its
+    /// folder; without `origin`, its folder again.
+    pub const SET_ORIGIN: &str = "editor/setOrigin";
     /// Notification, [`AnnotateParams`](super::AnnotateParams): a column of
     /// text left of the line numbers of a file (a blame), or none.
     pub const ANNOTATE: &str = "editor/annotate";
@@ -296,6 +305,16 @@ impl UiEvent {
         };
         Some((item, kind))
     }
+
+    /// The row of a tree whose context menu sent this (its action is the
+    /// item's).
+    pub fn menu_item(&self) -> Option<&str> {
+        let value = self.value.as_ref()?;
+        if value.get("kind").is_some() {
+            return None;
+        }
+        value.get("item")?.as_str()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -311,6 +330,10 @@ pub struct FileParams {
     /// rewrote (a replace in files), one about to be deleted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous: Option<String>,
+    /// For a file deleted: the ids of the boxes of this plugin the user left
+    /// ticked (see `file/deleteOptions`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<String>,
 }
 
 impl FileParams {
@@ -318,8 +341,25 @@ impl FileParams {
         FileParams {
             path: path.into(),
             previous: None,
+            options: Vec::new(),
         }
     }
+}
+
+/// A box a plugin adds to the question before a file is deleted.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeleteOption {
+    pub id: String,
+    pub label: String,
+    /// Ticked at first.
+    #[serde(default)]
+    pub checked: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DeleteOptions {
+    #[serde(default)]
+    pub options: Vec<DeleteOption>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -358,6 +398,13 @@ pub struct FileDecoration {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecorateParams {
     pub files: Vec<FileDecoration>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SetOriginParams {
+    pub path: PathBuf,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub origin: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -922,5 +969,28 @@ mod tests {
         };
         assert_eq!(event.tree_item(), Some(("a/b", TreeAction::Toggle)));
         assert_eq!(event.text(), None);
+    }
+
+    #[test]
+    fn a_tree_menu_event_is_told_from_a_click() {
+        let menu = UiEvent {
+            panel: "p".into(),
+            action: "rename".into(),
+            value: Some(serde_json::json!({"item": "a"})),
+        };
+        assert_eq!(menu.menu_item(), Some("a"));
+        assert_eq!(menu.tree_item(), None);
+        let click = UiEvent {
+            value: Some(serde_json::json!({"item": "a", "kind": "click"})),
+            ..menu
+        };
+        assert_eq!(click.menu_item(), None);
+        assert!(click.tree_item().is_some());
+        let origin = serde_json::to_value(SetOriginParams {
+            path: "/tmp/x".into(),
+            origin: None,
+        })
+        .unwrap();
+        assert!(origin.get("origin").is_none());
     }
 }
