@@ -60,6 +60,10 @@ pub mod methods {
     /// question before a file is deleted. The ones left ticked come back in
     /// the `options` of `event/fileDeleted`.
     pub const DELETE_OPTIONS: &str = "file/deleteOptions";
+    /// Request, no parameters → `null`: the user removes the plugin with its
+    /// data. What only the plugin knows of goes now (its passwords in the
+    /// system keychain); the editor deletes its data folder after.
+    pub const FORGET_DATA: &str = "data/forget";
     /// Notification, [`RenameParams`](super::RenameParams) (`file_renamed`).
     pub const FILE_RENAMED: &str = "event/fileRenamed";
     /// Notification, [`ActiveFileParams`](super::ActiveFileParams): the

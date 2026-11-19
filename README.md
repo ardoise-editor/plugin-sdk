@@ -18,7 +18,7 @@ protocol is described in [the guide](https://simple-edit-app.github.io/simpleedi
 
 ```toml
 [dependencies]
-simpleedit-plugin = { git = "https://github.com/simple-edit-app/plugin-sdk", tag = "v0.10.0" }
+simpleedit-plugin = { git = "https://github.com/simple-edit-app/plugin-sdk", tag = "v0.11.0" }
 ```
 
 ```rust

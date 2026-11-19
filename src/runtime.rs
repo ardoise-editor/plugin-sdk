@@ -148,6 +148,12 @@ pub trait Plugin {
             message: method.to_string(),
         })
     }
+    /// `data/forget`: the user removes the plugin with its data. Delete what
+    /// only the plugin knows of, outside of its data folder (passwords in
+    /// the system keychain); the editor deletes that folder afterwards.
+    fn forget_data(&mut self, host: &Host) -> Result<(), String> {
+        Ok(())
+    }
     /// The last call: the editor is closing or the plugin is uninstalled.
     fn shutdown(&mut self, host: &Host) {}
 }
@@ -627,6 +633,9 @@ pub fn run_on(
                         typed(Value::Null, |()| plugin.spell_languages(&host))
                     }
                     methods::SPELL_CHECK => typed(params, |p| plugin.spell_check(&host, &p)),
+                    methods::FORGET_DATA => typed(Value::Null, |()| {
+                        plugin.forget_data(&host).map(|()| Value::Null)
+                    }),
                     methods::DELETE_OPTIONS => typed(params, |p: FileParams| {
                         Ok(DeleteOptions {
                             options: plugin.delete_options(&host, &p.path),
@@ -1044,6 +1053,52 @@ mod tests {
             *chosen.lock().unwrap(),
             vec![(PathBuf::from("/a.txt"), vec!["untrack".to_string()])],
             "only the deletion with a box ticked"
+        );
+    }
+
+    #[test]
+    fn a_plugin_forgets_its_data_when_asked() {
+        struct Keeper(Arc<Mutex<bool>>);
+        impl Plugin for Keeper {
+            fn forget_data(&mut self, _: &Host) -> Result<(), String> {
+                *self.0.lock().unwrap() = true;
+                Ok(())
+            }
+        }
+        struct Failing;
+        impl Plugin for Failing {
+            fn forget_data(&mut self, _: &Host) -> Result<(), String> {
+                Err("the keychain is locked".into())
+            }
+        }
+        let input = || framed(&[Message::request(1, methods::FORGET_DATA, Value::Null)]);
+        let forgot = Arc::new(Mutex::new(false));
+        let out = Shared::default();
+        run_on(
+            BufReader::new(io::Cursor::new(input())),
+            Box::new(out.clone()),
+            Keeper(forgot.clone()),
+        )
+        .unwrap();
+        assert!(*forgot.lock().unwrap());
+        let written = read_all(&out.0.lock().unwrap());
+        assert!(matches!(
+            &written[0],
+            Message::Response {
+                id: 1,
+                result: Ok(Value::Null)
+            }
+        ));
+        let out = Shared::default();
+        run_on(
+            BufReader::new(io::Cursor::new(input())),
+            Box::new(out.clone()),
+            Failing,
+        )
+        .unwrap();
+        let written = read_all(&out.0.lock().unwrap());
+        assert!(
+            matches!(&written[0], Message::Response { result: Err(e), .. } if e.message.contains("locked"))
         );
     }
 
