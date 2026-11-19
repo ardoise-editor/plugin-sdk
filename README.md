@@ -1,6 +1,6 @@
 # simpleedit-plugin
 
-Write plugins for [SimpleEdit](https://github.com/simple-edit-app/simpleedit).
+Write plugins for [Ardoise Editor](https://github.com/ardoise-editor/ardoise).
 
 A plugin is a program with a `plugin.json` beside it. The editor starts it
 and they talk [JSON-RPC 2.0](https://www.jsonrpc.org/specification) over its
@@ -12,13 +12,13 @@ draws with its own widgets, in its theme.
 This crate holds the protocol, the manifest and the interface nodes, and a
 runtime that does the talking for plugins written in Rust. A plugin can be
 written in any language that reads and writes its standard streams: the
-protocol is described in [the guide](https://simple-edit-app.github.io/simpleedit/plugins.html).
+protocol is described in [the guide](https://ardoise-editor.github.io/ardoise/plugins.html).
 
 ## A plugin in Rust
 
 ```toml
 [dependencies]
-simpleedit-plugin = { git = "https://github.com/simple-edit-app/plugin-sdk", tag = "v0.11.0" }
+simpleedit-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.11.0" }
 ```
 
 ```rust
@@ -84,7 +84,7 @@ them fixed: implement `Plugin::lint` and `Plugin::fix` (types in
 `simpleedit_plugin::lint`). A panel with `"location": "settings"` is shown in
 **Preferences › Plugins**, under the plugin.
 
-[`plugin-template`](https://github.com/simple-edit-app/plugin-template) is a
+[`plugin-template`](https://github.com/ardoise-editor/plugin-template) is a
 repository to start from, with the workflow that publishes the releases the
 editor installs.
 

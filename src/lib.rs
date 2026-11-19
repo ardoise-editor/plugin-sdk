@@ -1,4 +1,4 @@
-//! Write plugins for [SimpleEdit](https://simple-edit-app.github.io/simpleedit/).
+//! Write plugins for [Ardoise](https://ardoise-editor.github.io/ardoise/).
 //!
 //! A plugin is a program with a [`plugin.json`](manifest) beside it. The
 //! editor starts it and they talk over its standard input and output
@@ -6,7 +6,7 @@
 //! editor draws. With the `runtime` feature (on by default), [`run`] does
 //! the talking: implement [`Plugin`] and react.
 //!
-//! The guide: <https://simple-edit-app.github.io/simpleedit/plugins.html>.
+//! The guide: <https://ardoise-editor.github.io/ardoise/plugins.html>.
 
 pub mod lint;
 pub mod manifest;
