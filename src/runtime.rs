@@ -1,12 +1,12 @@
 //! The plugin side: implement [`Plugin`] and hand it to [`run`].
 //!
 //! ```no_run
-//! use simpleedit_plugin::{run, Host, Plugin, ui::*};
+//! use ardoise_plugin::{run, Host, Plugin, ui::*};
 //!
 //! struct Hello;
 //!
 //! impl Plugin for Hello {
-//!     fn command(&mut self, host: &Host, command: &str, _: &simpleedit_plugin::protocol::Context) {
+//!     fn command(&mut self, host: &Host, command: &str, _: &ardoise_plugin::protocol::Context) {
 //!         if command == "hello.greet" {
 //!             host.notify("Hello!");
 //!         }

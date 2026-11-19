@@ -1,4 +1,4 @@
-# simpleedit-plugin
+# ardoise-plugin
 
 Write plugins for [Ardoise Editor](https://github.com/ardoise-editor/ardoise).
 
@@ -18,13 +18,13 @@ protocol is described in [the guide](https://ardoise-editor.github.io/ardoise/pl
 
 ```toml
 [dependencies]
-simpleedit-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.11.0" }
+ardoise-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.12.0" }
 ```
 
 ```rust
-use simpleedit_plugin::protocol::{Context, UiEvent};
-use simpleedit_plugin::ui::*;
-use simpleedit_plugin::{run, Host, Plugin};
+use ardoise_plugin::protocol::{Context, UiEvent};
+use ardoise_plugin::ui::*;
+use ardoise_plugin::{run, Host, Plugin};
 
 #[derive(Default)]
 struct Hello {
@@ -81,7 +81,7 @@ With its `plugin.json`:
 A plugin with `"contributes": {"linter": {"extensions": ["py"]}}` is asked
 `lint/run` for the problems of those files, and `lint/fix` for the text with
 them fixed: implement `Plugin::lint` and `Plugin::fix` (types in
-`simpleedit_plugin::lint`). A panel with `"location": "settings"` is shown in
+`ardoise_plugin::lint`). A panel with `"location": "settings"` is shown in
 **Preferences › Plugins**, under the plugin.
 
 [`plugin-template`](https://github.com/ardoise-editor/plugin-template) is a

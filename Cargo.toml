@@ -1,13 +1,13 @@
 [package]
-name = "simpleedit-plugin"
-version = "0.11.0"
+name = "ardoise-plugin"
+version = "0.12.0"
 edition = "2021"
 rust-version = "1.90"
-description = "Write plugins for the SimpleEdit text editor: the protocol, the manifest, the interface and a runtime"
+description = "Write plugins for the Ardoise text editor: the protocol, the manifest, the interface and a runtime"
 license = "MIT"
-repository = "https://github.com/simple-edit-app/plugin-sdk"
+repository = "https://github.com/ardoise-editor/plugin-sdk"
 readme = "README.md"
-keywords = ["simpleedit", "plugin", "editor"]
+keywords = ["ardoise", "plugin", "editor"]
 
 [features]
 # The plugin side: `run` and `Host`. The editor itself only needs the types.

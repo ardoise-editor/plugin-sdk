@@ -3,7 +3,7 @@
 //! comes back as a [`UiEvent`](crate::protocol::UiEvent).
 //!
 //! ```
-//! use simpleedit_plugin::ui::*;
+//! use ardoise_plugin::ui::*;
 //! let view = column([
 //!     text("Hello").style(TextStyle::Heading),
 //!     input("name", "", "Your name").on_submit("greet"),

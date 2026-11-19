@@ -1,9 +1,9 @@
 //! The smallest plugin with a command and a panel:
 //! `cargo run --example hello` waits for the editor on its input.
 
-use simpleedit_plugin::protocol::{Context, UiEvent};
-use simpleedit_plugin::ui::*;
-use simpleedit_plugin::{run, Host, Plugin};
+use ardoise_plugin::protocol::{Context, UiEvent};
+use ardoise_plugin::ui::*;
+use ardoise_plugin::{run, Host, Plugin};
 
 #[derive(Default)]
 struct Hello {

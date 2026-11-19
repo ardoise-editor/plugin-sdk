@@ -30,7 +30,7 @@ pub const FILE: &str = "plugin.json";
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
     /// Unique: lowercase words separated by dots, the first being the
-    /// author (`acme.hello`). `simpleedit.*` is kept for the official ones.
+    /// author (`acme.hello`). `ardoise.*` is kept for the official ones.
     pub id: String,
     pub name: Localized,
     /// `MAJOR.MINOR.PATCH`.
