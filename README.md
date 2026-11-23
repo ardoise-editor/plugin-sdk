@@ -18,7 +18,7 @@ protocol is described in [the guide](https://ardoise-editor.github.io/ardoise/pl
 
 ```toml
 [dependencies]
-ardoise-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.12.0" }
+ardoise-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.13.0" }
 ```
 
 ```rust
@@ -75,6 +75,25 @@ With its `plugin.json`:
   }
 }
 ```
+
+## Pictos and dialogs
+
+A button can be a picto: `button("Refresh", "refresh").icon("refresh-cw")`
+draws the [Lucide](https://lucide.dev/icons/) icon in a square button; the
+label becomes its tooltip and its accessible name, `.tooltip("…")` says
+something else, and `.with_label()` keeps the label beside the picto. A
+button without `icon` is drawn as before.
+
+`host.open_dialog(tab, title)` opens a window over the editor in place of a
+tab (`host.open_tab`): the same frame everywhere, with the title, a cross and
+Escape to close it. It shows what the plugin renders for `tab`; the plugin
+hears `tab_closed` when it is closed and can close it with `host.close_tab`.
+
+A dialog is built with `tabs(id, items)` (a strip of tabs, the selected one
+underlined), `tiles(id, items)` (a choice among a few, a picto above each
+label), `.width(px)` (a field or a column of a given width, to put two side by
+side in a row) and `footer(start, end)` (set apart by a line: pictos at the
+left, Cancel and the main action at the right).
 
 ## A linter
 

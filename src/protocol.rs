@@ -123,7 +123,8 @@ pub mod methods {
     /// Request, [`TabParams`](super::TabParams) → `null`: opens a tab of the
     /// plugin among the files (or brings it in front). It shows what the
     /// plugin renders for the panel named as the tab; after a restart, the
-    /// editor sends `panel/opened` for it when it is first shown.
+    /// editor sends `panel/opened` for it when it is first shown. With
+    /// `dialog` it opens as a window over the editor instead.
     pub const OPEN_TAB: &str = "editor/openTab";
     /// Notification, [`TabDirtyParams`](super::TabDirtyParams): the tab
     /// holds changes not kept (its name is marked, closing it asks first).
@@ -371,6 +372,15 @@ pub struct TabParams {
     /// Its id, unique for the plugin: letters, digits, `.`, `-`, `_`.
     pub tab: String,
     pub title: String,
+    /// Opens it as a dialog (a window over the editor, with the title, a
+    /// cross and Escape to close it) instead of a tab among the files. The
+    /// plugin hears `tab/closed` when it is closed, as for a tab.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub dialog: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -916,6 +926,21 @@ pub fn read_message(input: &mut impl BufRead) -> io::Result<Option<Message>> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_tab_is_a_dialog_only_when_it_says_so() {
+        use super::TabParams;
+        let old: TabParams = serde_json::from_str(r#"{"tab":"a","title":"A"}"#).unwrap();
+        assert!(!old.dialog);
+        assert!(serde_json::to_value(&old).unwrap().get("dialog").is_none());
+        let dialog = TabParams {
+            dialog: true,
+            ..old
+        };
+        let json = serde_json::to_value(&dialog).unwrap();
+        assert_eq!(json["dialog"], true);
+        assert_eq!(serde_json::from_value::<TabParams>(json).unwrap(), dialog);
+    }
+
     use super::*;
 
     #[test]

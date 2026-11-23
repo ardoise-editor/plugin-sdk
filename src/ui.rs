@@ -23,6 +23,9 @@ pub enum Node {
         spacing: Option<f32>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         padding: Option<f32>,
+        /// Its width in pixels (none: all the room left in its row).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        width: Option<f32>,
     },
     /// Nodes side by side.
     Row {
@@ -48,6 +51,19 @@ pub enum Node {
         /// `Ctrl` is Cmd on macOS.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         key: Option<String>,
+        /// A square button with a picto instead of the label: the name of a
+        /// Lucide icon (`"plus"`, `"refresh-cw"`, `"trash-2"`…) or one
+        /// character, as for [`Item::icon`]. The label is then its tooltip
+        /// (unless `tooltip` says otherwise) and its accessible name.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        icon: Option<String>,
+        /// What a tooltip says when the pointer rests on the button.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tooltip: Option<String>,
+        /// With an `icon`: draws the label after the picto (a button with a
+        /// picto and its text, not a square).
+        #[serde(default, skip_serializing_if = "is_default")]
+        show_label: bool,
     },
     /// A line of text. Each change sends `ui/event` with the `id` and the
     /// text; Enter sends `submit` (if set) with the text.
@@ -61,6 +77,9 @@ pub enum Node {
         /// Hides what is typed (passwords).
         #[serde(default, skip_serializing_if = "is_default")]
         secret: bool,
+        /// Its width in pixels (none: all the room left in its row).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        width: Option<f32>,
     },
     Checkbox {
         id: String,
@@ -83,6 +102,31 @@ pub enum Node {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         selected: Option<String>,
     },
+    /// A strip of tabs, the selected one underlined: a click sends the `id`
+    /// of the strip and the `id` of the item.
+    Tabs {
+        id: String,
+        items: Vec<Item>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        selected: Option<String>,
+    },
+    /// Tiles side by side (a picto above the label), one of them selected: a
+    /// click sends the `id` of the tiles and the `id` of the item.
+    Tiles {
+        id: String,
+        items: Vec<Item>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        selected: Option<String>,
+    },
+    /// The footer of a dialog, set apart by a line: `start` at the left (the
+    /// secondary actions, pictos), `end` at the right (Cancel, then the main
+    /// action).
+    Footer {
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        start: Vec<Node>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        end: Vec<Node>,
+    },
     /// Rows that open on their children. A click on a row sends
     /// `{"item", "kind": "click"}`, its chevron `{"item", "kind": "toggle"}`:
     /// the plugin decides what opens (it may load the children then).
@@ -91,6 +135,9 @@ pub enum Node {
     Separator,
     /// Empty room.
     Space { height: f32 },
+    /// Empty room that takes all the room left in its row: what pushes the
+    /// nodes after it to the right.
+    Fill,
     /// Text on several lines, highlighted as `language` (an extension:
     /// `json`, `rs`; empty: plain). Each change sends `ui/event` with the
     /// `id` and the whole text, unless it is `read_only`. What is typed stays
@@ -497,6 +544,7 @@ pub fn column(children: impl IntoIterator<Item = Node>) -> Node {
         children: children.into_iter().collect(),
         spacing: None,
         padding: None,
+        width: None,
     }
 }
 
@@ -521,6 +569,9 @@ pub fn button(label: impl Into<String>, action: impl Into<String>) -> Node {
         style: ButtonStyle::Outline,
         enabled: true,
         key: None,
+        icon: None,
+        tooltip: None,
+        show_label: false,
     }
 }
 
@@ -535,6 +586,30 @@ pub fn input(
         placeholder: placeholder.into(),
         submit: None,
         secret: false,
+        width: None,
+    }
+}
+
+pub fn tabs(id: impl Into<String>, items: impl IntoIterator<Item = Item>) -> Node {
+    Node::Tabs {
+        id: id.into(),
+        items: items.into_iter().collect(),
+        selected: None,
+    }
+}
+
+pub fn tiles(id: impl Into<String>, items: impl IntoIterator<Item = Item>) -> Node {
+    Node::Tiles {
+        id: id.into(),
+        items: items.into_iter().collect(),
+        selected: None,
+    }
+}
+
+pub fn footer(start: impl IntoIterator<Item = Node>, end: impl IntoIterator<Item = Node>) -> Node {
+    Node::Footer {
+        start: start.into_iter().collect(),
+        end: end.into_iter().collect(),
     }
 }
 
@@ -616,6 +691,10 @@ pub fn editor(
 
 pub fn separator() -> Node {
     Node::Separator
+}
+
+pub fn fill() -> Node {
+    Node::Fill
 }
 
 pub fn space(height: f32) -> Node {
@@ -726,6 +805,31 @@ impl Node {
         self
     }
 
+    /// A picto for a button (see [`Node::Button`]): its label becomes the
+    /// tooltip and the accessible name.
+    pub fn icon(mut self, value: impl Into<String>) -> Self {
+        if let Node::Button { icon, .. } = &mut self {
+            *icon = Some(value.into());
+        }
+        self
+    }
+
+    /// With an icon, the label stays beside the picto.
+    pub fn with_label(mut self) -> Self {
+        if let Node::Button { show_label, .. } = &mut self {
+            *show_label = true;
+        }
+        self
+    }
+
+    /// The tooltip of a button, in place of its label.
+    pub fn tooltip(mut self, value: impl Into<String>) -> Self {
+        if let Node::Button { tooltip, .. } = &mut self {
+            *tooltip = Some(value.into());
+        }
+        self
+    }
+
     /// The key that presses a button while its panel has the keyboard.
     pub fn key(mut self, value: impl Into<String>) -> Self {
         if let Node::Button { key, .. } = &mut self {
@@ -790,10 +894,21 @@ impl Node {
         self
     }
 
-    /// The row of a list that is marked as selected.
+    /// The row of a list (the tab, the tile) that is marked as selected.
     pub fn selected(mut self, value: impl Into<String>) -> Self {
-        if let Node::List { selected, .. } = &mut self {
+        if let Node::List { selected, .. }
+        | Node::Tabs { selected, .. }
+        | Node::Tiles { selected, .. } = &mut self
+        {
             *selected = Some(value.into());
+        }
+        self
+    }
+
+    /// The width of a field or of a column, in pixels.
+    pub fn width(mut self, value: f32) -> Self {
+        if let Node::Input { width, .. } | Node::Column { width, .. } = &mut self {
+            *width = Some(value);
         }
         self
     }
@@ -996,6 +1111,59 @@ mod grid_tests {
             serde_json::to_value(image("<svg/>")).unwrap()["type"],
             "image"
         );
+    }
+
+    #[test]
+    fn a_button_with_a_picto_goes_as_json_and_back_and_without_one_is_as_before() {
+        let plain = serde_json::to_value(button("Save", "save")).unwrap();
+        assert!(plain.get("icon").is_none() && plain.get("tooltip").is_none());
+        let old: Node =
+            serde_json::from_str(r#"{"type":"button","label":"Save","action":"save"}"#).unwrap();
+        assert_eq!(old, button("Save", "save"));
+        let node = button("Refresh", "refresh")
+            .icon("refresh-cw")
+            .tooltip("Reload the tree");
+        let json = serde_json::to_value(&node).unwrap();
+        assert_eq!(json["icon"], "refresh-cw");
+        assert_eq!(json["tooltip"], "Reload the tree");
+        assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
+        let labelled = button("Add", "add").icon("plus").with_label();
+        let json = serde_json::to_value(&labelled).unwrap();
+        assert_eq!(json["show_label"], true);
+        assert_eq!(serde_json::from_value::<Node>(json).unwrap(), labelled);
+        assert!(plain.get("show_label").is_none());
+        // Only a button takes them.
+        assert_eq!(text("x").icon("plus"), text("x"));
+    }
+
+    #[test]
+    fn tabs_tiles_footers_and_the_width_of_a_field_go_as_json_and_back() {
+        let node = column([
+            tabs("tabs", [item("a", "A"), item("b", "B")]).selected("b"),
+            tiles("kind", [item("pg", "PostgreSQL").icon("database")]).selected("pg"),
+            input("port", "5432", "").width(110.0),
+            footer(
+                [button("Test", "test").icon("zap")],
+                [button("Cancel", "cancel"), button("Save", "save")],
+            ),
+        ]);
+        let json = serde_json::to_value(&node).unwrap();
+        assert_eq!(json["children"][0]["type"], "tabs");
+        assert_eq!(json["children"][0]["selected"], "b");
+        assert_eq!(json["children"][1]["items"][0]["icon"], "database");
+        assert_eq!(json["children"][2]["width"], 110.0);
+        assert_eq!(
+            serde_json::to_value(column([text("a")]).width(90.0)).unwrap()["width"],
+            90.0
+        );
+        assert_eq!(json["children"][3]["end"][1]["action"], "save");
+        assert_eq!(serde_json::to_value(fill()).unwrap()["type"], "fill");
+        assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
+        // A field without a width goes as before.
+        assert!(serde_json::to_value(input("a", "", ""))
+            .unwrap()
+            .get("width")
+            .is_none());
     }
 
     #[test]
