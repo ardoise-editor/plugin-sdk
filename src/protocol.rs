@@ -377,6 +377,12 @@ pub struct TabParams {
     /// plugin hears `tab/closed` when it is closed, as for a tab.
     #[serde(default, skip_serializing_if = "is_false")]
     pub dialog: bool,
+    /// With `dialog`: the picto of its header (a Lucide icon name, as for a
+    /// button) and the line under its title.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subtitle: Option<String>,
 }
 
 fn is_false(value: &bool) -> bool {
@@ -932,12 +938,18 @@ mod tests {
         let old: TabParams = serde_json::from_str(r#"{"tab":"a","title":"A"}"#).unwrap();
         assert!(!old.dialog);
         assert!(serde_json::to_value(&old).unwrap().get("dialog").is_none());
+        assert!(serde_json::to_value(&old).unwrap().get("icon").is_none());
         let dialog = TabParams {
             dialog: true,
+            icon: Some("database".into()),
+            subtitle: Some("PostgreSQL, MySQL or SQLite".into()),
             ..old
         };
         let json = serde_json::to_value(&dialog).unwrap();
         assert_eq!(json["dialog"], true);
+        assert_eq!(json["icon"], "database");
+        assert_eq!(json["subtitle"], "PostgreSQL, MySQL or SQLite");
+
         assert_eq!(serde_json::from_value::<TabParams>(json).unwrap(), dialog);
     }
 

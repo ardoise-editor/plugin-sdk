@@ -370,23 +370,50 @@ impl Host {
     /// Opens a tab of the plugin among the files (see
     /// [`methods::OPEN_TAB`]); it shows what is rendered for `tab`.
     pub fn open_tab(&self, tab: &str, title: impl Into<String>) -> Result<(), RpcError> {
-        self.open_window(tab, title.into(), false)
+        self.open_window(tab, title.into(), false, None, None)
     }
 
     /// Opens a dialog of the plugin over the editor: a window with the
     /// title, a cross and Escape to close it. It shows what is rendered for
     /// `tab`, and [`Host::close_tab`] closes it.
     pub fn open_dialog(&self, tab: &str, title: impl Into<String>) -> Result<(), RpcError> {
-        self.open_window(tab, title.into(), true)
+        self.open_window(tab, title.into(), true, None, None)
     }
 
-    fn open_window(&self, tab: &str, title: String, dialog: bool) -> Result<(), RpcError> {
+    /// The same with a picto (a Lucide icon name) in its header, and a line
+    /// under its title.
+    pub fn open_dialog_with(
+        &self,
+        tab: &str,
+        title: impl Into<String>,
+        icon: &str,
+        subtitle: impl Into<String>,
+    ) -> Result<(), RpcError> {
+        self.open_window(
+            tab,
+            title.into(),
+            true,
+            Some(icon.to_string()),
+            Some(subtitle.into()),
+        )
+    }
+
+    fn open_window(
+        &self,
+        tab: &str,
+        title: String,
+        dialog: bool,
+        icon: Option<String>,
+        subtitle: Option<String>,
+    ) -> Result<(), RpcError> {
         self.request::<Value>(
             methods::OPEN_TAB,
             TabParams {
                 tab: tab.to_string(),
                 title,
                 dialog,
+                icon,
+                subtitle,
             },
         )
         .map(|_| ())

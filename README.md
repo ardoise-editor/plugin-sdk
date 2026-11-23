@@ -18,7 +18,7 @@ protocol is described in [the guide](https://ardoise-editor.github.io/ardoise/pl
 
 ```toml
 [dependencies]
-ardoise-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.13.0" }
+ardoise-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.14.0" }
 ```
 
 ```rust
@@ -86,7 +86,7 @@ button without `icon` is drawn as before.
 
 `host.open_dialog(tab, title)` opens a window over the editor in place of a
 tab (`host.open_tab`): the same frame everywhere, with the title, a cross and
-Escape to close it. It shows what the plugin renders for `tab`; the plugin
+Escape to close it; `host.open_dialog_with(tab, title, "database", "a line under the title")` adds the picto (a Lucide icon) and the line of its header. It shows what the plugin renders for `tab`; the plugin
 hears `tab_closed` when it is closed and can close it with `host.close_tab`.
 
 A dialog is built with `tabs(id, items)` (a strip of tabs, the selected one
