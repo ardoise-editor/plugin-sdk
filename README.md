@@ -81,7 +81,8 @@ With its `plugin.json`:
 A button can be a picto: `button("Refresh", "refresh").icon("refresh-cw")`
 draws the [Lucide](https://lucide.dev/icons/) icon in a square button; the
 label becomes its tooltip and its accessible name, `.tooltip("…")` says
-something else. A button without `icon` is drawn as before.
+something else, and `.with_label()` keeps the label beside the picto. A
+button without `icon` is drawn as before.
 
 `host.open_dialog(tab, title)` opens a window over the editor in place of a
 tab (`host.open_tab`): the same frame everywhere, with the title, a cross and

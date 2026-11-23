@@ -60,6 +60,10 @@ pub enum Node {
         /// What a tooltip says when the pointer rests on the button.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         tooltip: Option<String>,
+        /// With an `icon`: draws the label after the picto (a button with a
+        /// picto and its text, not a square).
+        #[serde(default, skip_serializing_if = "is_default")]
+        show_label: bool,
     },
     /// A line of text. Each change sends `ui/event` with the `id` and the
     /// text; Enter sends `submit` (if set) with the text.
@@ -567,6 +571,7 @@ pub fn button(label: impl Into<String>, action: impl Into<String>) -> Node {
         key: None,
         icon: None,
         tooltip: None,
+        show_label: false,
     }
 }
 
@@ -805,6 +810,14 @@ impl Node {
     pub fn icon(mut self, value: impl Into<String>) -> Self {
         if let Node::Button { icon, .. } = &mut self {
             *icon = Some(value.into());
+        }
+        self
+    }
+
+    /// With an icon, the label stays beside the picto.
+    pub fn with_label(mut self) -> Self {
+        if let Node::Button { show_label, .. } = &mut self {
+            *show_label = true;
         }
         self
     }
@@ -1114,6 +1127,11 @@ mod grid_tests {
         assert_eq!(json["icon"], "refresh-cw");
         assert_eq!(json["tooltip"], "Reload the tree");
         assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
+        let labelled = button("Add", "add").icon("plus").with_label();
+        let json = serde_json::to_value(&labelled).unwrap();
+        assert_eq!(json["show_label"], true);
+        assert_eq!(serde_json::from_value::<Node>(json).unwrap(), labelled);
+        assert!(plain.get("show_label").is_none());
         // Only a button takes them.
         assert_eq!(text("x").icon("plus"), text("x"));
     }
