@@ -48,6 +48,15 @@ pub enum Node {
         /// `Ctrl` is Cmd on macOS.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         key: Option<String>,
+        /// A square button with a picto instead of the label: the name of a
+        /// Lucide icon (`"plus"`, `"refresh-cw"`, `"trash-2"`…) or one
+        /// character, as for [`Item::icon`]. The label is then its tooltip
+        /// (unless `tooltip` says otherwise) and its accessible name.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        icon: Option<String>,
+        /// What a tooltip says when the pointer rests on the button.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tooltip: Option<String>,
     },
     /// A line of text. Each change sends `ui/event` with the `id` and the
     /// text; Enter sends `submit` (if set) with the text.
@@ -521,6 +530,8 @@ pub fn button(label: impl Into<String>, action: impl Into<String>) -> Node {
         style: ButtonStyle::Outline,
         enabled: true,
         key: None,
+        icon: None,
+        tooltip: None,
     }
 }
 
@@ -722,6 +733,23 @@ impl Node {
     pub fn button_style(mut self, value: ButtonStyle) -> Self {
         if let Node::Button { style, .. } = &mut self {
             *style = value;
+        }
+        self
+    }
+
+    /// A picto for a button (see [`Node::Button`]): its label becomes the
+    /// tooltip and the accessible name.
+    pub fn icon(mut self, value: impl Into<String>) -> Self {
+        if let Node::Button { icon, .. } = &mut self {
+            *icon = Some(value.into());
+        }
+        self
+    }
+
+    /// The tooltip of a button, in place of its label.
+    pub fn tooltip(mut self, value: impl Into<String>) -> Self {
+        if let Node::Button { tooltip, .. } = &mut self {
+            *tooltip = Some(value.into());
         }
         self
     }
@@ -996,6 +1024,24 @@ mod grid_tests {
             serde_json::to_value(image("<svg/>")).unwrap()["type"],
             "image"
         );
+    }
+
+    #[test]
+    fn a_button_with_a_picto_goes_as_json_and_back_and_without_one_is_as_before() {
+        let plain = serde_json::to_value(button("Save", "save")).unwrap();
+        assert!(plain.get("icon").is_none() && plain.get("tooltip").is_none());
+        let old: Node =
+            serde_json::from_str(r#"{"type":"button","label":"Save","action":"save"}"#).unwrap();
+        assert_eq!(old, button("Save", "save"));
+        let node = button("Refresh", "refresh")
+            .icon("refresh-cw")
+            .tooltip("Reload the tree");
+        let json = serde_json::to_value(&node).unwrap();
+        assert_eq!(json["icon"], "refresh-cw");
+        assert_eq!(json["tooltip"], "Reload the tree");
+        assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
+        // Only a button takes them.
+        assert_eq!(text("x").icon("plus"), text("x"));
     }
 
     #[test]

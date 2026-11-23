@@ -370,11 +370,23 @@ impl Host {
     /// Opens a tab of the plugin among the files (see
     /// [`methods::OPEN_TAB`]); it shows what is rendered for `tab`.
     pub fn open_tab(&self, tab: &str, title: impl Into<String>) -> Result<(), RpcError> {
+        self.open_window(tab, title.into(), false)
+    }
+
+    /// Opens a dialog of the plugin over the editor: a window with the
+    /// title, a cross and Escape to close it. It shows what is rendered for
+    /// `tab`, and [`Host::close_tab`] closes it.
+    pub fn open_dialog(&self, tab: &str, title: impl Into<String>) -> Result<(), RpcError> {
+        self.open_window(tab, title.into(), true)
+    }
+
+    fn open_window(&self, tab: &str, title: String, dialog: bool) -> Result<(), RpcError> {
         self.request::<Value>(
             methods::OPEN_TAB,
             TabParams {
                 tab: tab.to_string(),
-                title: title.into(),
+                title,
+                dialog,
             },
         )
         .map(|_| ())
