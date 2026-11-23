@@ -23,6 +23,9 @@ pub enum Node {
         spacing: Option<f32>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         padding: Option<f32>,
+        /// Its width in pixels (none: all the room left in its row).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        width: Option<f32>,
     },
     /// Nodes side by side.
     Row {
@@ -537,6 +540,7 @@ pub fn column(children: impl IntoIterator<Item = Node>) -> Node {
         children: children.into_iter().collect(),
         spacing: None,
         padding: None,
+        width: None,
     }
 }
 
@@ -888,9 +892,9 @@ impl Node {
         self
     }
 
-    /// The width of a field, in pixels.
+    /// The width of a field or of a column, in pixels.
     pub fn width(mut self, value: f32) -> Self {
-        if let Node::Input { width, .. } = &mut self {
+        if let Node::Input { width, .. } | Node::Column { width, .. } = &mut self {
             *width = Some(value);
         }
         self
@@ -1130,6 +1134,10 @@ mod grid_tests {
         assert_eq!(json["children"][0]["selected"], "b");
         assert_eq!(json["children"][1]["items"][0]["icon"], "database");
         assert_eq!(json["children"][2]["width"], 110.0);
+        assert_eq!(
+            serde_json::to_value(column([text("a")]).width(90.0)).unwrap()["width"],
+            90.0
+        );
         assert_eq!(json["children"][3]["end"][1]["action"], "save");
         assert_eq!(serde_json::to_value(fill()).unwrap()["type"], "fill");
         assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
