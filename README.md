@@ -88,6 +88,12 @@ tab (`host.open_tab`): the same frame everywhere, with the title, a cross and
 Escape to close it. It shows what the plugin renders for `tab`; the plugin
 hears `tab_closed` when it is closed and can close it with `host.close_tab`.
 
+A dialog is built with `tabs(id, items)` (a strip of tabs, the selected one
+underlined), `tiles(id, items)` (a choice among a few, a picto above each
+label), `input(…).width(px)` (a field of a given width, to put two side by
+side in a row) and `footer(start, end)` (set apart by a line: pictos at the
+left, Cancel and the main action at the right).
+
 ## A linter
 
 A plugin with `"contributes": {"linter": {"extensions": ["py"]}}` is asked

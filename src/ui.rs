@@ -70,6 +70,9 @@ pub enum Node {
         /// Hides what is typed (passwords).
         #[serde(default, skip_serializing_if = "is_default")]
         secret: bool,
+        /// Its width in pixels (none: all the room left in its row).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        width: Option<f32>,
     },
     Checkbox {
         id: String,
@@ -91,6 +94,31 @@ pub enum Node {
         items: Vec<Item>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         selected: Option<String>,
+    },
+    /// A strip of tabs, the selected one underlined: a click sends the `id`
+    /// of the strip and the `id` of the item.
+    Tabs {
+        id: String,
+        items: Vec<Item>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        selected: Option<String>,
+    },
+    /// Tiles side by side (a picto above the label), one of them selected: a
+    /// click sends the `id` of the tiles and the `id` of the item.
+    Tiles {
+        id: String,
+        items: Vec<Item>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        selected: Option<String>,
+    },
+    /// The footer of a dialog, set apart by a line: `start` at the left (the
+    /// secondary actions, pictos), `end` at the right (Cancel, then the main
+    /// action).
+    Footer {
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        start: Vec<Node>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        end: Vec<Node>,
     },
     /// Rows that open on their children. A click on a row sends
     /// `{"item", "kind": "click"}`, its chevron `{"item", "kind": "toggle"}`:
@@ -546,6 +574,30 @@ pub fn input(
         placeholder: placeholder.into(),
         submit: None,
         secret: false,
+        width: None,
+    }
+}
+
+pub fn tabs(id: impl Into<String>, items: impl IntoIterator<Item = Item>) -> Node {
+    Node::Tabs {
+        id: id.into(),
+        items: items.into_iter().collect(),
+        selected: None,
+    }
+}
+
+pub fn tiles(id: impl Into<String>, items: impl IntoIterator<Item = Item>) -> Node {
+    Node::Tiles {
+        id: id.into(),
+        items: items.into_iter().collect(),
+        selected: None,
+    }
+}
+
+pub fn footer(start: impl IntoIterator<Item = Node>, end: impl IntoIterator<Item = Node>) -> Node {
+    Node::Footer {
+        start: start.into_iter().collect(),
+        end: end.into_iter().collect(),
     }
 }
 
@@ -818,10 +870,21 @@ impl Node {
         self
     }
 
-    /// The row of a list that is marked as selected.
+    /// The row of a list (the tab, the tile) that is marked as selected.
     pub fn selected(mut self, value: impl Into<String>) -> Self {
-        if let Node::List { selected, .. } = &mut self {
+        if let Node::List { selected, .. }
+        | Node::Tabs { selected, .. }
+        | Node::Tiles { selected, .. } = &mut self
+        {
             *selected = Some(value.into());
+        }
+        self
+    }
+
+    /// The width of a field, in pixels.
+    pub fn width(mut self, value: f32) -> Self {
+        if let Node::Input { width, .. } = &mut self {
+            *width = Some(value);
         }
         self
     }
@@ -1042,6 +1105,31 @@ mod grid_tests {
         assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
         // Only a button takes them.
         assert_eq!(text("x").icon("plus"), text("x"));
+    }
+
+    #[test]
+    fn tabs_tiles_footers_and_the_width_of_a_field_go_as_json_and_back() {
+        let node = column([
+            tabs("tabs", [item("a", "A"), item("b", "B")]).selected("b"),
+            tiles("kind", [item("pg", "PostgreSQL").icon("database")]).selected("pg"),
+            input("port", "5432", "").width(110.0),
+            footer(
+                [button("Test", "test").icon("zap")],
+                [button("Cancel", "cancel"), button("Save", "save")],
+            ),
+        ]);
+        let json = serde_json::to_value(&node).unwrap();
+        assert_eq!(json["children"][0]["type"], "tabs");
+        assert_eq!(json["children"][0]["selected"], "b");
+        assert_eq!(json["children"][1]["items"][0]["icon"], "database");
+        assert_eq!(json["children"][2]["width"], 110.0);
+        assert_eq!(json["children"][3]["end"][1]["action"], "save");
+        assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
+        // A field without a width goes as before.
+        assert!(serde_json::to_value(input("a", "", ""))
+            .unwrap()
+            .get("width")
+            .is_none());
     }
 
     #[test]
