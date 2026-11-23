@@ -128,6 +128,9 @@ pub enum Node {
     Separator,
     /// Empty room.
     Space { height: f32 },
+    /// Empty room that takes all the room left in its row: what pushes the
+    /// nodes after it to the right.
+    Fill,
     /// Text on several lines, highlighted as `language` (an extension:
     /// `json`, `rs`; empty: plain). Each change sends `ui/event` with the
     /// `id` and the whole text, unless it is `read_only`. What is typed stays
@@ -681,6 +684,10 @@ pub fn separator() -> Node {
     Node::Separator
 }
 
+pub fn fill() -> Node {
+    Node::Fill
+}
+
 pub fn space(height: f32) -> Node {
     Node::Space { height }
 }
@@ -1124,6 +1131,7 @@ mod grid_tests {
         assert_eq!(json["children"][1]["items"][0]["icon"], "database");
         assert_eq!(json["children"][2]["width"], 110.0);
         assert_eq!(json["children"][3]["end"][1]["action"], "save");
+        assert_eq!(serde_json::to_value(fill()).unwrap()["type"], "fill");
         assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
         // A field without a width goes as before.
         assert!(serde_json::to_value(input("a", "", ""))
