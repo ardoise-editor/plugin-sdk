@@ -147,6 +147,19 @@ pub struct Panel {
     pub icon: Option<String>,
     #[serde(default)]
     pub location: Location,
+    /// The panels of a group share one button and one place under the
+    /// editor, each a tab of it. For panels at the bottom only. An editor
+    /// older than 2.8 refuses a manifest that says it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group: Option<Group>,
+}
+
+/// The groups the editor knows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Group {
+    /// The Git panel: Git itself, and what goes with it (the forges).
+    Git,
 }
 
 /// Where a panel opens.
@@ -286,6 +299,9 @@ impl Manifest {
             }
         }
         for panel in &self.contributes.panels {
+            if panel.group.is_some() && panel.location != Location::Bottom {
+                return Err(Invalid::Contribution(panel.id.clone()));
+            }
             if panel.icon.as_ref().is_some_and(|i| i.chars().count() > 2) {
                 return Err(Invalid::Contribution(panel.id.clone()));
             }
@@ -354,6 +370,27 @@ pub fn parse_version(s: &str) -> Option<(u32, u32, u32)> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_group_is_for_a_panel_at_the_bottom() {
+        let manifest = |panel: &str| {
+            Manifest::parse(&format!(
+                r#"{{"id": "acme.a", "name": "A", "version": "1.0.0", "api": 1,
+                    "command": ["a"], "contributes": {{"panels": [{panel}]}}}}"#
+            ))
+        };
+        let grouped =
+            manifest(r#"{"id": "p", "title": "P", "location": "bottom", "group": "git"}"#).unwrap();
+        assert_eq!(grouped.contributes.panels[0].group, Some(Group::Git));
+        assert!(
+            manifest(r#"{"id": "p", "title": "P", "location": "sidebar", "group": "git"}"#)
+                .is_err()
+        );
+        assert!(
+            manifest(r#"{"id": "p", "title": "P", "location": "bottom", "group": "other"}"#)
+                .is_err()
+        );
+    }
+
     use super::*;
 
     const HELLO: &str = r#"{
