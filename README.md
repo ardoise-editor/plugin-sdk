@@ -18,7 +18,7 @@ protocol is described in [the guide](https://ardoise-editor.github.io/ardoise/pl
 
 ```toml
 [dependencies]
-ardoise-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.16.0" }
+ardoise-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.17.0" }
 ```
 
 ```rust
@@ -100,6 +100,13 @@ left, Cancel and the main action at the right).
 `host.set_run_marks(path, lines)` puts a ▶ in the gutter on those lines of a
 file (from 0; no line: they go); a click calls `Plugin::run_mark_clicked`.
 Ardoise 2.10 draws them; an older one ignores them.
+
+## A chat
+
+A panel with `"location": "right"` stands at the right of the editor.
+`ui::markdown(text)` is drawn as the preview of the editor does, and
+`editor(…).on_submit("send")` sends on Enter (Shift+Enter: a new line). All
+three need Ardoise 2.11.
 
 ## Completion in files
 

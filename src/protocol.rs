@@ -66,6 +66,10 @@ pub mod methods {
     pub const FORGET_DATA: &str = "data/forget";
     /// Notification, [`RenameParams`](super::RenameParams) (`file_renamed`).
     pub const FILE_RENAMED: &str = "event/fileRenamed";
+    /// Notification, [`WorkspaceParams`](super::WorkspaceParams): the
+    /// folders open as projects changed (`workspace_changed` in the
+    /// manifest).
+    pub const WORKSPACE_CHANGED: &str = "event/workspaceChanged";
     /// Notification, [`ActiveFileParams`](super::ActiveFileParams): the
     /// file in front changed (`active_file` in the manifest).
     pub const ACTIVE_FILE_CHANGED: &str = "event/activeFileChanged";
@@ -367,6 +371,12 @@ impl FileParams {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceParams {
+    #[serde(default)]
+    pub folders: Vec<PathBuf>,
+}
+
 /// A box a plugin adds to the question before a file is deleted.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DeleteOption {
@@ -617,6 +627,9 @@ pub struct PickFileParams {
     /// The extensions offered (none: any file).
     #[serde(default)]
     pub extensions: Vec<String>,
+    /// A folder is asked instead of a file (Ardoise 2.11; before, a file).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub folder: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
