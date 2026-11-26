@@ -38,6 +38,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::lint::{FixParams, FixResult, LintParams, LintResult};
+use crate::protocol::WorkspaceParams;
 use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, AnnotateParams,
     Annotations, CommandParams, CompleterParams, CompletionParams, Completions, ConfirmParams,
@@ -105,6 +106,8 @@ pub trait Plugin {
     /// A file or folder was renamed or moved (`file_renamed`).
     fn file_renamed(&mut self, host: &Host, from: &Path, to: &Path) {}
     fn settings_changed(&mut self, host: &Host, settings: &Settings) {}
+    /// The folders open as projects changed (`workspace_changed`).
+    fn workspace_changed(&mut self, host: &Host, folders: &[std::path::PathBuf]) {}
     /// The file in front changed (`active_file` in the manifest).
     fn active_file_changed(&mut self, host: &Host, path: Option<&Path>) {}
     /// `completion/request`: what may come at the cursor of an editor of a
@@ -588,6 +591,22 @@ impl Host {
             PickFileParams {
                 title: title.into(),
                 extensions: extensions.iter().map(|e| e.to_string()).collect(),
+                folder: false,
+            },
+        )
+    }
+
+    /// Asks the user for a folder (see [`PickFileParams::folder`]).
+    pub fn pick_folder(
+        &self,
+        title: impl Into<String>,
+    ) -> Result<Option<std::path::PathBuf>, RpcError> {
+        self.request(
+            methods::PICK_FILE,
+            PickFileParams {
+                title: title.into(),
+                extensions: Vec::new(),
+                folder: true,
             },
         )
     }
@@ -785,6 +804,11 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         methods::ANNOTATION_CLICKED => {
             if let Some(p) = parse::<LineParams>(params) {
                 plugin.annotation_clicked(host, &p.path, p.line);
+            }
+        }
+        methods::WORKSPACE_CHANGED => {
+            if let Some(p) = parse::<WorkspaceParams>(params) {
+                plugin.workspace_changed(host, &p.folders);
             }
         }
         methods::RUN_MARK_CLICKED => {

@@ -168,11 +168,18 @@ pub enum Node {
         /// when it differs from the one sent before (a match found).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         selection: Option<EditorSelection>,
+        /// What Enter sends, with the whole text (Shift+Enter then starts a
+        /// new line), as in a chat. Ardoise 2.11; before, Enter is a line.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        submit: Option<String>,
     },
     /// Rows of cells under named columns (the rows of a table): only the
     /// rows on screen are drawn. What the user does comes back as
     /// `ui/event` with the `id` and a [`GridEvent`].
     Grid(Box<Grid>),
+    /// A text in Markdown (headings, lists, code, tables), drawn as the
+    /// preview of the editor does. An editor older than 2.11 can't draw it.
+    Markdown { text: String },
     /// A picture: SVG text.
     Image {
         svg: String,
@@ -460,6 +467,9 @@ pub struct Screen {
     /// A text marked wherever it is on screen (a search).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub highlight: String,
+    /// Its height in pixels (none: all the room left). Ardoise 2.11.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub height: Option<u16>,
 }
 
 /// Cells of a line that look the same, from column `col`. A wide glyph
@@ -686,7 +696,13 @@ pub fn editor(
         regions: Vec::new(),
         mark: None,
         selection: None,
+        submit: None,
     }
+}
+
+/// A text in Markdown.
+pub fn markdown(text: impl Into<String>) -> Node {
+    Node::Markdown { text: text.into() }
 }
 
 pub fn separator() -> Node {
@@ -870,9 +886,10 @@ impl Node {
         self
     }
 
-    /// What Enter sends in a field.
+    /// What Enter sends in a field, or in an editor (see
+    /// [`Node::Editor::submit`]).
     pub fn on_submit(mut self, action: impl Into<String>) -> Self {
-        if let Node::Input { submit, .. } = &mut self {
+        if let Node::Input { submit, .. } | Node::Editor { submit, .. } = &mut self {
             *submit = Some(action.into());
         }
         self
@@ -1030,6 +1047,21 @@ mod tests {
         let input: ScreenInput =
             serde_json::from_value(json!({"kind": "resize", "rows": 3, "cols": 9})).unwrap();
         assert_eq!(input, ScreenInput::Resize { rows: 3, cols: 9 });
+    }
+
+    #[test]
+    fn markdown_and_an_editor_that_sends_are_plain_json() {
+        let node = column([markdown("# Hi"), editor("e", "", "").on_submit("send")]);
+        let json = serde_json::to_value(&node).unwrap();
+        assert_eq!(
+            json["children"][0],
+            json!({"type": "markdown", "text": "# Hi"})
+        );
+        assert_eq!(json["children"][1]["submit"], "send");
+        assert_eq!(serde_json::from_value::<Node>(json).unwrap(), node);
+        // Left out when not said.
+        let plain = serde_json::to_value(editor("e", "", "")).unwrap();
+        assert!(plain.get("submit").is_none());
     }
 
     #[test]

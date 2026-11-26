@@ -73,6 +73,9 @@ pub enum Event {
     FileDeleted,
     /// A file or a folder was renamed or moved by the editor.
     FileRenamed,
+    /// The folders open as projects changed. Ardoise 2.11 (an older editor
+    /// refuses a manifest that says it).
+    WorkspaceChanged,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -173,6 +176,10 @@ pub enum Location {
     /// Under the editor, like the terminal; its button is at the bottom of
     /// the activity bar.
     Bottom,
+    /// At the right of the editor, beside what is on the left and under (a
+    /// chat); its button is in the activity bar. An editor older than 2.11
+    /// refuses a manifest that says it.
+    Right,
     /// In Preferences › Plugins, under the plugin: its settings. No button.
     Settings,
 }
