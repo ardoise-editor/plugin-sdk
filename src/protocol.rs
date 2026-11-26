@@ -77,7 +77,9 @@ pub mod methods {
     pub const TAB_SAVE: &str = "tab/save";
     /// Request, [`CompletionParams`](super::CompletionParams) →
     /// [`Completions`](super::Completions): what may come at the cursor of
-    /// an editor of a panel (one made `with_completion`).
+    /// an editor of a panel (one made `with_completion`), or of a file the
+    /// plugin completes (`editor/setCompleter`): `panel` is then empty and
+    /// `editor` the path of the file.
     pub const COMPLETION: &str = "completion/request";
     /// Notification, no parameters: the Plugins tab of Search Everywhere
     /// opened; the plugin may send its items again.
@@ -116,7 +118,16 @@ pub mod methods {
     /// Request, [`LearnParams`](crate::spell::LearnParams) → `null`.
     pub const SPELL_LEARN: &str = "spell/learn";
 
+    /// Notification, [`LineParams`](super::LineParams): a run mark of the
+    /// gutter was clicked (see `editor/setRunMarks`).
+    pub const RUN_MARK_CLICKED: &str = "runMark/clicked";
+
     // ── From the plugin to the editor ──────────────────────────────────
+    /// Notification, [`RunMarksParams`](super::RunMarksParams): the lines of
+    /// a file that have a run mark (▶) in the gutter (a service of a compose
+    /// file…). It replaces what the plugin said before for that file; no
+    /// line takes the marks away. An editor older than 2.10 ignores it.
+    pub const SET_RUN_MARKS: &str = "editor/setRunMarks";
     /// Notification, [`RenderParams`](super::RenderParams): what a panel
     /// shows, whole.
     pub const RENDER: &str = "ui/render";
@@ -146,6 +157,11 @@ pub mod methods {
     /// Notification, [`AnnotateParams`](super::AnnotateParams): a column of
     /// text left of the line numbers of a file (a blame), or none.
     pub const ANNOTATE: &str = "editor/annotate";
+    /// Notification, [`CompleterParams`](super::CompleterParams): the
+    /// plugin completes what is typed in a file (a Dockerfile…): the editor
+    /// asks it with `completion/request`. An editor older than 2.10 ignores
+    /// it.
+    pub const SET_COMPLETER: &str = "editor/setCompleter";
     /// Request, [`DiffTabParams`](super::DiffTabParams) → `null`: shows the
     /// diffs of files in a tab of the plugin (or replaces what a tab with
     /// that id shows). Its buttons send `diff/action`.
@@ -437,6 +453,25 @@ pub struct SetBaseParams {
     /// The file is outside of what the plugin knows: no marks at all.
     #[serde(default)]
     pub none: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RunMarksParams {
+    pub path: PathBuf,
+    /// From 0.
+    #[serde(default)]
+    pub lines: Vec<usize>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CompleterParams {
+    pub path: PathBuf,
+    /// The plugin completes the file (`false`: no more).
+    #[serde(default)]
+    pub on: bool,
+    /// Typing one of these asks for the list (typing a name does too).
+    #[serde(default)]
+    pub triggers: Vec<String>,
 }
 
 /// A line of a column of annotations.

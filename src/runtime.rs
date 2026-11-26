@@ -40,13 +40,14 @@ use serde_json::Value;
 use crate::lint::{FixParams, FixResult, LintParams, LintResult};
 use crate::protocol::{
     codes, methods, read_message, write_message, ActiveFile, ActiveFileParams, AnnotateParams,
-    Annotations, CommandParams, CompletionParams, Completions, ConfirmParams, Context, CopyParams,
-    DecorateParams, DeleteOption, DeleteOptions, DiffActionParams, DiffParams, DiffTabParams,
-    EditorState, EditorStateParams, FileDecoration, FileParams, InitializeParams, Level,
-    LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams, OpenTextParams,
+    Annotations, CommandParams, CompleterParams, CompletionParams, Completions, ConfirmParams,
+    Context, CopyParams, DecorateParams, DeleteOption, DeleteOptions, DiffActionParams, DiffParams,
+    DiffTabParams, EditorState, EditorStateParams, FileDecoration, FileParams, InitializeParams,
+    Level, LineParams, MergeParams, Message, Named, NotifyParams, OpenFileParams, OpenTextParams,
     PanelParams, PickFileParams, PickSavePathParams, PublishParams, RenameParams, RenderParams,
-    ReplaceTextParams, RpcError, SaveFileParams, SearchItem, SearchItemsParams, SearchPickedParams,
-    SetBaseParams, SetOriginParams, Settings, StatusParams, TabDirtyParams, TabParams, UiEvent,
+    ReplaceTextParams, RpcError, RunMarksParams, SaveFileParams, SearchItem, SearchItemsParams,
+    SearchPickedParams, SetBaseParams, SetOriginParams, Settings, StatusParams, TabDirtyParams,
+    TabParams, UiEvent,
 };
 use crate::spell::{
     CheckParams, CheckResult, Language as SpellLanguage, LearnParams, SuggestParams,
@@ -75,6 +76,8 @@ pub trait Plugin {
     fn merge_resolved(&mut self, host: &Host, params: &MergeParams) {}
     /// A line of the annotations of a file was clicked (from 0).
     fn annotation_clicked(&mut self, host: &Host, path: &Path, line: usize) {}
+    /// A run mark of the gutter was clicked (line from 0).
+    fn run_mark_clicked(&mut self, host: &Host, path: &Path, line: usize) {}
     /// A tab of the plugin was closed.
     fn tab_closed(&mut self, host: &Host, tab: &str) {}
     /// The user asked to save a tab of the plugin.
@@ -105,7 +108,8 @@ pub trait Plugin {
     /// The file in front changed (`active_file` in the manifest).
     fn active_file_changed(&mut self, host: &Host, path: Option<&Path>) {}
     /// `completion/request`: what may come at the cursor of an editor of a
-    /// panel made `with_completion`.
+    /// panel made `with_completion`, or of a file given to
+    /// [`Host::set_completer`] (`panel` empty, `editor` its path).
     fn completion(
         &mut self,
         host: &Host,
@@ -363,6 +367,35 @@ impl Host {
             AnnotateParams {
                 path: path.as_ref().to_path_buf(),
                 annotations,
+            },
+        );
+    }
+
+    /// The lines of a file (from 0) with a run mark in the gutter (see
+    /// [`methods::SET_RUN_MARKS`]).
+    pub fn set_run_marks(&self, path: impl AsRef<Path>, lines: Vec<usize>) {
+        self.notification(
+            methods::SET_RUN_MARKS,
+            RunMarksParams {
+                path: path.as_ref().to_path_buf(),
+                lines,
+            },
+        );
+    }
+
+    /// Completes what is typed in a file (see
+    /// [`methods::SET_COMPLETER`]); `None`: no more.
+    pub fn set_completer(&self, path: impl AsRef<Path>, triggers: Option<&[&str]>) {
+        self.notification(
+            methods::SET_COMPLETER,
+            CompleterParams {
+                path: path.as_ref().to_path_buf(),
+                on: triggers.is_some(),
+                triggers: triggers
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|t| t.to_string())
+                    .collect(),
             },
         );
     }
@@ -752,6 +785,11 @@ fn dispatch(plugin: &mut impl Plugin, host: &Host, method: &str, params: Value) 
         methods::ANNOTATION_CLICKED => {
             if let Some(p) = parse::<LineParams>(params) {
                 plugin.annotation_clicked(host, &p.path, p.line);
+            }
+        }
+        methods::RUN_MARK_CLICKED => {
+            if let Some(p) = parse::<LineParams>(params) {
+                plugin.run_mark_clicked(host, &p.path, p.line);
             }
         }
         methods::TAB_CLOSED => {

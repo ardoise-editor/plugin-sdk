@@ -18,7 +18,7 @@ protocol is described in [the guide](https://ardoise-editor.github.io/ardoise/pl
 
 ```toml
 [dependencies]
-ardoise-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.14.0" }
+ardoise-plugin = { git = "https://github.com/ardoise-editor/plugin-sdk", tag = "v0.16.0" }
 ```
 
 ```rust
@@ -94,6 +94,19 @@ underlined), `tiles(id, items)` (a choice among a few, a picto above each
 label), `.width(px)` (a field or a column of a given width, to put two side by
 side in a row) and `footer(start, end)` (set apart by a line: pictos at the
 left, Cancel and the main action at the right).
+
+## Run marks
+
+`host.set_run_marks(path, lines)` puts a ▶ in the gutter on those lines of a
+file (from 0; no line: they go); a click calls `Plugin::run_mark_clicked`.
+Ardoise 2.10 draws them; an older one ignores them.
+
+## Completion in files
+
+`host.set_completer(path, Some(&[" ", "-"]))` has the editor ask the plugin
+what may come at the cursor of that file, as it is typed in and on
+Ctrl+Space: `Plugin::completion`, with an empty `panel` and the path as
+`editor`. Ardoise 2.10; an older one ignores it.
 
 ## A linter
 
